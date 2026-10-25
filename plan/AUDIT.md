@@ -6,6 +6,21 @@
 
 ## Pending
 
+### [C, 6.3] support.mjs asks gh for authorAssociation, which gh rejects, so Support routing never runs
+- category: correctness
+- impact: 7, ease: 9
+- source: heads-down 60.3 (2026-10-25)
+- evidence: `scripts/plan/support.mjs` `ghIssue()` (~line
+  492) requests `gh issue view --json ...,authorAssociation`;
+  the installed `gh` refuses the unknown field, so `support.mjs
+  route` always prints `gh unavailable: triage routes as
+  today` and spec 54's Support routing is silently off. The
+  template twin `templates/scripts/plan/support.mjs` carries
+  the same call (the scripts leg keeps them byte-identical).
+- next: read the association through `gh api
+  repos/{repo}/issues/{n}` (`author_association`), in both
+  copies, with a test that stubs the `gh` reply.
+
 ### [B, 5.6] README.md's "What you get" section has zero prose entry point for the secrets vault
 - category: completeness
 - impact: 7, ease: 8
