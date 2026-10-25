@@ -17,6 +17,7 @@ merges with git's `union` driver):
 
 - **fake-gh-path** · a Windows path (C:/...) put on PATH in Git Bash splits at its colon, so a fake gh never shadows the real one and a test files a real issue → prepend the POSIX form (/c/...) and run `command -v gh` before any test that stubs it · seen 1× · last 2026-10-21 · open
 - **npm-install-lockfile-drift** · `npm install` in `packages/cli` rewrites `package-lock.json`'s optional-dep `libc` fields on an npm version mismatch → diff `package-lock.json` before committing; revert npm-version-only drift · seen 1× · last 2026-10-24 · open
+- **gh-picks-upstream** · in a clone with an `upstream` remote and no `gh` default repo, bare `gh issue list` resolves to upstream, so triage and the mirror read a stranger's issues → run `gh repo set-default "$(node scripts/kit-id.mjs repo)"` once per clone and pass `--repo` in skills · seen 1× · last 2026-10-25 · open
 ## Watch (seen once: searched before adding a line, not read before building)
 
 ## Guarded (automated: the line says by what)
