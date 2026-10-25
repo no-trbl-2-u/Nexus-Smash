@@ -1,0 +1,121 @@
+# 61 — A judge in the gate
+
+> Every pull request's acceptance IDs are proven by a job
+> that runs the named proofs on the PR head with no token in
+> reach, an escape ledger measures how often the gate was
+> wrong, and a partitioned adversarial review posts a verdict
+> the merge step trusts only for that exact head.
+
+## Why
+
+The kit's merge path for a contributor PR is
+`.github/workflows/pr-flow.yml`, a conventional check. A
+chunk's `closes A1` is ticked by the branch that built it, and
+nothing re-runs the proof. The kit has no measurement of its
+own judgement: no record of PRs merged whose tests could not
+fail, whose acceptance lines named no test, or whose checks
+had not finished (checked 2026-10-25: `scripts/` has no
+`eval` directory; `pr-flow.yml` has one job).
+
+A mature v1 adopter built exactly this and measured why it
+was needed. Over 42 merged PRs in one week: 4 merged before
+checks finished, 5 with no verify run, 16 with uncovered
+code, 1 merged on the string "pass" inside "not a pass"; a
+parent replay found 4 of 58 new test files could not fail
+and 49 of 65 ticked acceptance lines named no test. Those
+numbers produced its gate rules, not the other way round.
+Its review fans a diff out by changed module to paired
+readers plus a whole-diff control, and keeps reader and
+fixer in separate runs with disjoint tool grants.
+
+Specs 63 and 64 run writers and refiners unattended. Both
+are unsafe behind a check that trusts the branch's own word.
+This spec lands first.
+
+## Design
+
+- **Acceptance proofs in the PR body.** `skills/next/land.md`
+  writes, under `## Acceptance`, one line per closed A-ID:
+  `- A3 · test/claims.test.mjs` or `- A3 · (no test:
+  <reason>)`. `scripts/pr/acceptance.mjs` parses the body and
+  fails when a closed A-ID has no line.
+- **The judge job.** `pr-flow.yml` gains `judge`: checks out
+  the PR head with no secrets, runs every named proof
+  (`node --test <file>`, or a command), fails on any red or
+  any proof file missing, and writes a step summary with one
+  row per A-ID. It also runs the parent replay: every test
+  file added by the PR is run on the merge base, and a test
+  that passes there fails the job unless the body carries
+  `guard-test: <reason>` for it.
+- **The escape ledger.** `scripts/eval/ledger.mjs` reads
+  merged PRs since a date and writes
+  `plan/eval/ledger.md`: merged before checks finished, no
+  judge run, acceptance line with no proof, fix landed within
+  7 days. `/digest` prints the week's counts; a count that
+  rises two weeks running files an AUDIT HIGH about the loop
+  itself (spec 57's motion generator shape).
+- **Partitioned review.** `scripts/pr/partition.mjs` derives a
+  manifest from the diff: one assignment per changed module
+  with its files, its reverse-import consumers and a
+  do-not-report list. `skills/review.md` reads each
+  assignment with a logic reader and a seams reader (Sonnet,
+  foreground), plus one whole-diff control reader on medium
+  or high risk; findings tagged `[a1:logic]`; the verdict
+  comment carries `<!-- pr-review:readers <n> overlap <k>
+  -->`. `skills/review-fix.md` repairs a `not-pass` in a
+  separate job with Edit and Write and no comment, label or
+  merge grant. Caps: 2/3/6 assignments by risk tier, 120k
+  characters per reader.
+- **Merge trusts the head.** `scripts/pr/merge.mjs decide`
+  re-reads the head sha's own `judge` check run and the
+  verdict comment's head sha; a comment for another sha, a
+  moved head, a `plot` label, or `NEXUS_AUTO_MERGE` unset
+  holds the merge. The owner's settle stays the only writer
+  to shared plan files.
+- **Model tiering returns to CI.** `_toolchain` gains `model`
+  and `effort` inputs; `judge` runs no model; review readers
+  run Sonnet; `review-fix` runs Haiku unless the verdict says
+  otherwise; `march.yml` keeps Sonnet 5. The choice per
+  workflow is one table in `.github/workflows/README.md`.
+- **Templates.** Every script and skill above has a template
+  twin; `templates/.github/workflows/pr-flow.yml` carries the
+  judge job gated by `NEXUS_JUDGE` (`1` on, default `0` so an
+  upgraded adopter changes nothing).
+
+## Contracts
+
+- PR body `## Acceptance` lines: `- A<n> · <path|command>` or
+  `- A<n> · (no test: <reason>)`; `guard-test: <reason>`.
+- `node scripts/pr/acceptance.mjs <body-file>`;
+  `node scripts/pr/partition.mjs --base <sha> --json`;
+  `node scripts/pr/merge.mjs decide <pr>`;
+  `node scripts/eval/ledger.mjs --since <date>`.
+- Labels: `review:needs-owner`, `review:exhausted`,
+  `risk:low|medium|high`. Variables: `NEXUS_JUDGE`,
+  `NEXUS_AUTO_MERGE`.
+
+## Acceptance
+
+- **A1** A PR whose body closes an A-ID without a proof line fails `judge`; a PR naming a proof file that is missing or red fails `judge`; a PR adding a test that passes on the merge base fails `judge` unless `guard-test:` names it.
+- **A2** `judge` runs with no repository secret in its environment and writes a step summary with one row per A-ID.
+- **A3** `plan/eval/ledger.md` exists and is regenerated by `/digest`; its counts over the last 10 merged PRs match a hand count.
+- **A4** `skills/review.md` posts one verdict comment per PR with reader tags and the overlap marker; `review-fix` runs in a job whose tool grants exclude comment, label and merge; a planted defect in a scratch PR is found by at least one reader.
+- **A5** `merge.mjs decide` refuses a verdict whose head sha differs from the PR head, a `plot` PR, and an unset `NEXUS_AUTO_MERGE`; a scratch PR with all three green merges by itself.
+- **A6** `.github/workflows/README.md` carries the model and effort table; `_toolchain` exposes both inputs; no workflow pins a model outside that table.
+- **A7** The template twins exist, the `upgrade` verify leg lists them, and an adopter with `NEXUS_JUDGE` unset sees no new required check.
+
+## Open questions
+
+(None.)
+
+## Chunks
+Measure: 7 open · 0 closed · next A8
+
+- [ ] **61.1** Acceptance proof lines and `acceptance.mjs` · S · closes A1 · needs 60.1
+- [ ] **61.2** The `judge` job with the parent replay · M · closes A2 · needs 61.1
+  - Workflow file: ships from a local session (cloud token).
+- [ ] **61.3** The escape ledger and its digest line · M · closes A3 · needs 61.2
+- [ ] **61.4** Partitioned review and the separate fixer · L · closes A4 · needs 61.2
+- [ ] **61.5** Merge decides on the head's own checks · M · closes A5 · needs 61.4
+- [ ] **61.6** Model and effort per workflow · S · closes A6 · needs 61.2
+- [ ] **61.7** Template twins behind `NEXUS_JUDGE` · M · closes A7 · needs 61.5, 61.6
