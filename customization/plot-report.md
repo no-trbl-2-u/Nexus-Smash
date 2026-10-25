@@ -3,7 +3,7 @@
 > `/plot` reports in prose: the task, what is built, where the
 > work would go, when `/next` builds it, the questions only the
 > owner can answer, how to move it. Read in a terminal that is
-> fine; in the `@usenexus/cli` cockpit it is a wall of text. So
+> fine; in the GUI's cockpit (`packages/cli`) it is a wall of text. So
 > the report ends with the same facts as data: one fenced block
 > tagged `nexus-plot`, holding JSON, which the cockpit draws as a
 > card with one-click actions. The prose stays; the block is

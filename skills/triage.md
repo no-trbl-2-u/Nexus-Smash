@@ -24,7 +24,12 @@ you add, as `/plot` does).
 ## 3. The procedure
 
 1. **Pre-flight:** `gh auth status || exit 3` (loop continues;
-   awareness layers never hard-fail the march).
+   awareness layers never hard-fail the march). Then pin the
+   repo: `gh repo set-default "$(node scripts/kit-id.mjs
+   repo)"`. A checkout with an `upstream` remote otherwise
+   sends every bare `gh` call (this skill's, `support.mjs`'s,
+   `triage-match.mjs`'s) to the upstream kit's issues
+   (`agents.md` "Operational secrets").
 2. **List candidates:** open issues without `triage:*` labels,
    excluding `loop:opened` (the loop's own mirrors).
 3. **Classify** each: `docs | bug | enhancement | lesson |
@@ -107,15 +112,16 @@ Whatever skill ships the fix for issue `#N` (`/bug`'s `/plot
    tell <N> --commit <sha>`. It comments "Fixed in <sha>
    (<subject>)" and closes the issue. A fix under
    `packages/cli` comments that it lands in the next
-   `@usenexus/cli` release and leaves the issue open; the
+   GUI release and leaves the issue open; the
    release closes it. `refuse` (the commit lacks `Refs #N`)
    and `wait` (not on main yet) write nothing; `skip` means no
    `gh`, and the next tick tells it.
 3. **The release closes the rest.** A `cli-v*` tag runs
    `scripts/release-reply.mjs` from `publish.yml`: each open
    issue labeled `triage:loop-queued` or `bug` that a `Refs #N`
-   in the release range names gets "Fixed in @usenexus/cli
-   X.Y.Z: npx @usenexus/cli@X.Y.Z" and is closed. Every other
+   in the release range names gets "Fixed in <package>
+   X.Y.Z: npx <package>@X.Y.Z" (`kit.json` `package`) and is
+   closed. Every other
    referenced issue is left alone and listed in the run's
    summary. `NEXUS_RELEASE_REPLY=off` stops it.
 
@@ -149,7 +155,8 @@ Whatever skill ships the fix for issue `#N` (`/bug`'s `/plot
 ## 7. Quick reference
 
 ```bash
-gh issue list --repo daretodave/nexus --state open \
+gh repo set-default "$(node scripts/kit-id.mjs repo)"   # pre-flight: never the upstream remote
+gh issue list --repo "$(node scripts/kit-id.mjs repo)" --state open \
   --search "-label:triage:loop-queued -label:triage:planned -label:triage:needs-user -label:triage:closed -label:triage:reviewed -label:loop:opened" \
   --json number,title
 node scripts/plan/triage-match.mjs <N>   # spec | ambiguous | none | covered (--text, --json, --no-prs)

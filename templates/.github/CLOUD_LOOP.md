@@ -423,7 +423,7 @@ threshold. Switching presets is `gh variable set NEXUS_CADENCE
   preset puts it back); commit them, then set the variable.
   `/bootstrap cloud-loop` does both from
   `cloud_loop.cadence` (default `steady` on a new adoption).
-  So does the GUI's Cloud step (`npx @usenexus/cli`): it
+  So does the GUI's Cloud step (`nexus/packages/cli`): it
   offers the five presets, plus Overnight as a custom cron
   outside them; Turn on commits the preset's lines and, in
   owner mode, sets the variable (a contributor's pull request

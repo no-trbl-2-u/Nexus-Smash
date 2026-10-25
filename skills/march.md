@@ -146,11 +146,13 @@ heartbeat closes the issue when a week recovers.
 ### Step 1 — Triage gate (cheapest; concierge first)
 
 ```bash
+# This repo, never the upstream remote gh would pick (agents.md).
+repo=$(node scripts/kit-id.mjs repo)
 # The concierge lane: loop:do outranks everything.
-urgent=$(gh issue list --repo daretodave/nexus --state open \
+urgent=$(gh issue list --repo "$repo" --state open \
   --label loop:do --json number --jq 'length' 2>/dev/null || echo 0)
 
-unlabeled=$(gh issue list --repo daretodave/nexus --state open \
+unlabeled=$(gh issue list --repo "$repo" --state open \
   --search "-label:triage:loop-queued -label:triage:planned -label:triage:needs-user -label:triage:closed -label:triage:reviewed -label:loop:opened" \
   --json number --jq 'length' 2>/dev/null || echo 0)
 ```

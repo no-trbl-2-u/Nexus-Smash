@@ -118,8 +118,13 @@ the skill that asks anything, any time.
 ## Project
 
 **nexus** — a methodology + template kit that turns a repo
-into a project that ships itself. Lives at
-https://github.com/daretodave/nexus. The product spec is
+into a project that ships itself. This repo is
+`no-trbl-2-u/Nexus-Smash` (https://github.com/no-trbl-2-u/Nexus-Smash),
+a fork of the upstream kit `daretodave/nexus`, and builds
+itself with its own loop. `kit.json` holds the identity (this
+repo, the upstream, the npm package, the docs base); read it
+with `node scripts/kit-id.mjs <field>` rather than spelling a
+slug out (spec 60). The product spec is
 `README.md` (what the kit promises) plus
 `concepts/architecture.md` (how it works). There is no
 `spec.md`; for a kit, the README is the spec.
@@ -137,7 +142,7 @@ skills/              nexus's OWN skills (the loop that ships the kit).
 plan/                nexus's OWN state files (roadmap, specs, archive, queues).
 scripts/             The kit's verify gate (verify.mjs), the
                      diagram generator (diagrams.mjs).
-packages/cli/        The GUI (`@usenexus/cli`): its own tests
+packages/cli/        The GUI (`kit.json` `package`): its own tests
                      (`npm test`), build and `cli-ci` gate.
 identity/            The kit's identity layer (footguns, decisions).
 assets/              Generated SVG diagrams; never hand-edited.
@@ -187,7 +192,13 @@ verbs — a kit ships docs, templates and the GUI.
 - **`GH_TOKEN`** — optional locally (`gh auth login` works);
   the cloud loop sets it from the `ACTIONS_PAT` secret. Used
   for `/triage` and the issue mirror.
-  `GH_REPO=daretodave/nexus`.
+  `GH_REPO=no-trbl-2-u/Nexus-Smash` (`node scripts/kit-id.mjs
+  repo`). A local checkout carries an `upstream` remote, and
+  `gh` without `--repo` picks `upstream` over `origin`, so
+  bare `gh issue list` reads the upstream kit's issues. Run
+  `gh repo set-default "$(node scripts/kit-id.mjs repo)"`
+  once per clone (`/triage` pre-flight does it), or export
+  `GH_REPO`; `gh` honours either.
 - **`CLAUDE_CODE_OAUTH_TOKEN`** — repo secret for the cloud
   loop only. Mint with `claude setup-token`.
 - **`ACTIONS_PAT`** — repo secret; fine-grained PAT (Contents +
@@ -206,8 +217,10 @@ verbs — a kit ships docs, templates and the GUI.
   commits author as `nexus`, not `github-actions[bot]` — see
   `.github/CLOUD_LOOP.md` setup step 3.
 - **npm publishing has no secret.** `.github/workflows/publish.yml`
-  publishes `packages/cli` as `@usenexus/cli` through npm Trusted
-  Publishing (OIDC, provenance automatic) on a `cli-v*` tag.
+  publishes `packages/cli` under `kit.json`'s `package` name
+  through npm Trusted Publishing (OIDC, provenance automatic)
+  on a `cli-v*` tag; the fork's scope is not on npm yet
+  (spec 60 Q1).
   Never add an `NPM_TOKEN`.
 - No other secrets. The kit's gate is hermetic and offline.
 - The names live in `nexus.secrets.json` (`GH_TOKEN`,

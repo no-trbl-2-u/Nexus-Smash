@@ -56,7 +56,7 @@ port fills in: `design/port.md`) and prints the boards per page. It writes nothi
 canvas names a board the folder lacks: fetch the rest, rerun.
 
 A package's UI takes its handoff beside its code. nexus's GUI
-is `@usenexus/cli`, so its deliveries take `--into
+is `packages/cli`, so its deliveries take `--into
 packages/cli/design/handoff` and land as
 `packages/cli/design/handoff/<date>/`. The three 2026-10-21
 deliveries sit flat in that folder, older than this

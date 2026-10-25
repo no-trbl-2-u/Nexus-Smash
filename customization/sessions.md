@@ -206,7 +206,7 @@ the checkout's untracked `.nexus/local.json`:
 ```
 
 The path is relative to the checkout (or absolute). The GUI's
-sessions (`npx @usenexus/cli`) read it; with none set they use
+sessions (`packages/cli`) read it; with none set they use
 the folder most of the repo's linked worktrees already share
 (one inside the repo only when the repo ignores it), else the
 kit's default.

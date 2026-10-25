@@ -1,15 +1,11 @@
 {
   "about": "Files that still name the upstream kit, with their match counts (spec 60). Computed by node scripts/kit-id.mjs refs --write; the kit leg lets a count fall, never rise.",
   "files": {
-    ".github/CLOUD_LOOP.md": 1,
-    ".github/ISSUE_TEMPLATE/config.yml": 1,
     ".github/workflows/cli-ci.yml": 1,
     ".github/workflows/march.yml": 1,
     ".github/workflows/publish.yml": 4,
     "README.md": 9,
-    "agents.md": 4,
-    "customization/plot-report.md": 1,
-    "customization/sessions.md": 1,
+    "agents.md": 1,
     "packages/cli/README.md": 20,
     "packages/cli/bin/nexus.mjs": 14,
     "packages/cli/design/handoff/CloudSetup.dc.html": 1,
@@ -34,16 +30,10 @@
     "packages/cli/src/ui/feedback.jsx": 1,
     "packages/cli/test/onboarding-fit.test.mjs": 2,
     "packages/cli/test/repo-start-ui.test.mjs": 2,
-    "playbooks/cloud-loop-existing-actions.md": 1,
     "playbooks/upgrade.md": 3,
     "scripts/__tests__/generators-nexus.test.mjs": 1,
     "scripts/__tests__/release-reply.test.mjs": 6,
     "scripts/release-reply.mjs": 5,
-    "skills/design/ingest.md": 1,
-    "skills/march.md": 2,
-    "skills/ship-a-chunk.md": 1,
-    "skills/triage.md": 4,
-    "templates/.github/CLOUD_LOOP.md": 1,
     "templates/scripts/__tests__/support.test.mjs": 4
   }
 }

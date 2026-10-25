@@ -65,7 +65,8 @@ A-ID, a true Measure line), commit that alone
 
 ```bash
 issue_body=$(mktemp)
-# the helper titles it "Spec <NN> — <spec title>"
+# the helper titles it "Spec <NN> — <spec title>"; GH_REPO is this repo
+GH_REPO=${GH_REPO:-$(node scripts/kit-id.mjs repo)} \
 node templates/scripts/loop-issue.mjs spec-open \
   --spec <NN> --title "<spec title>" --body-file "$issue_body"
 ```
@@ -163,8 +164,9 @@ on the spec's last chunk. Then post the chunk's comment on the
 mirror (best-effort):
 
 ```bash
+GH_REPO=${GH_REPO:-$(node scripts/kit-id.mjs repo)} \
 node templates/scripts/loop-issue.mjs spec-close \
-  --spec <NN> --commit <sha> --deploy-url https://github.com/daretodave/nexus
+  --spec <NN> --commit <sha> --deploy-url "https://github.com/$(node scripts/kit-id.mjs repo)"
 ```
 
 ### Step 9 — Done

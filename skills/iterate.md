@@ -169,7 +169,8 @@ whether an I row may ship today.
 3. **Pick:** top score; an I row only while `loop-rows.mjs
    status` prints `ship: room` (§3b). `/iterate audit` stops
    here (commit the audit block only).
-4. **Mirror (best-effort):** `node
+4. **Mirror (best-effort,** `GH_REPO` set as in
+   `ship-a-chunk.md` Step 2**):** `node
    templates/scripts/loop-issue.mjs open --severity <…>
    --category docs --source audit --title "<…>" --body-file
    "$(mktemp)"` (`--category ui` for an H row,

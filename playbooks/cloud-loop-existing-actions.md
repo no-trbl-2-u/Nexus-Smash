@@ -15,7 +15,7 @@ runner, a PR bot that already releases claims, a ruleset on
 main. The order below was learned from a mature adopter that
 grew all of those before it grew a cloud loop.
 
-**For tools that drive this page** (the `@usenexus/cli`
+**For tools that drive this page** (the GUI's
 Actions-setup screen): each step is a `## Step N` heading
 with a `<!-- step: <id> -->` marker, a **Check** (read-only
 commands whose output says whether the step is done), a
