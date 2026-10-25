@@ -89,6 +89,16 @@ Resolve by where the file lives:
   file (`npm test` in `packages/cli`, the single verify leg
   that owns it).
 
+A merge with no conflict in `plan/` can still change it: an
+upstream close of a chunk in a spec both repos share (one
+from before the fork) arrives with the code that closed it.
+Keep that close, since the code is here now; dropping it
+would send the loop to build the chunk again. What breaks is
+this fork's own specs: a `needs` naming a chunk upstream just
+closed is red in the `chunks` leg
+(`node scripts/verify.mjs chunks`). Drop the closed need from
+the chunk line, as a close on main would.
+
 Then `git commit` to conclude the merge. The default message
 (`Merge remote-tracking branch 'upstream/main' into
 sync/<date>`) is fine; add a body line per conflict you
@@ -103,7 +113,11 @@ and a new file that names upstream is red.
 `node scripts/kit-id.mjs refs` prints what names upstream now.
 For each rise, lower it before landing: reword the line, or
 route it through `kit.json` (`readKit()` in a script,
-`node scripts/kit-id.mjs <field>` in a doc's commands). Never
+`node scripts/kit-id.mjs <field>` in a doc's commands). The
+usual ones: a new help line that says `npx` and the upstream
+package (say `nexus upgrade`, the CLI's `bin` name), a doc
+URL on upstream's repo (point it at this fork's `docs`), a
+clone URL in `packages/cli/server/` (this fork's `repo`). Never
 raise a count in `scripts/kit-refs.json` by hand. When counts
 only fell, `node scripts/kit-id.mjs refs --write` lowers the
 list to match.
