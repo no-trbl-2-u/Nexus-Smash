@@ -18,10 +18,16 @@
 | `plan/nexus.lock` with `shape: phases` | v1, pinned | the lock's `ref:` |
 | `plan/nexus.lock` with `shape: chunks` | v2 | the lock's `ref:` |
 
-The `v1.0.0` tag is the last phase-shape release:
-`https://github.com/daretodave/nexus/tree/v1.0.0`. Everything
-a v1 repo copied (skills, templates, playbooks) is there,
+The `v1.0.0` tag is the last phase-shape release, in the
+kit's own repo (`node ../nexus/scripts/kit-id.mjs repo` names
+it; the upstream nexus kit this one was forked from carries the
+same tag): `git -C ../nexus checkout v1.0.0`. Everything a v1
+repo copied (skills, templates, playbooks) is there,
 unchanged, for as long as you want it.
+
+This page is how a repo that adopted the kit upgrades. The
+people who run the kit's fork pull upstream forward with
+[`fork-sync.md`](./fork-sync.md) instead.
 
 A v1 cloud loop has no quota governor: it spends the shared
 weekly quota with no gate and fires at minute :00, the
@@ -94,7 +100,8 @@ so first move any local edit you'd made to `march.md` or
 (`skills/march.lanes.md`, `skills/iterate.lanes.md`), which a
 re-sync never overwrites
 ([`../customization/project-lanes.md`](../customization/project-lanes.md);
-`npx @usenexus/cli upgrade` makes this move for you, one lane
+the kit's CLI (`nexus upgrade`, from `packages/cli`) makes
+this move for you, one lane
 per section no kit version ever held);
 a skill or command of your own that the kit never shipped is
 left alone. Sweep the eight placeholders over the new files
@@ -202,7 +209,7 @@ shipped is `plan/ARCHIVE.md`), `CLAUDE.md`'s pointer, and
 discriminator and the skill list: copy both from
 `../nexus/templates/.github/workflows/march.yml`).
 
-`npx @usenexus/cli upgrade` merges `march.yml` for you
+`nexus upgrade` (the kit's CLI) merges `march.yml` for you
 instead: the v2 owner job, with your cron, ceiling number,
 model pin, every extra `env:` entry (deploy tokens by name),
 concurrency group, any step the kit never shipped and any

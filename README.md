@@ -573,6 +573,7 @@ nexus/
 │   ├── hands-off.md                   # the walk-away runbook — close the seven silent-death modes
 │   ├── recovery.md                    # the incident runbook — safe-stop, triage tree, procedures
 │   ├── upgrade.md                     # an older plan shape → specs + chunks; pin with plan/nexus.lock
+│   ├── fork-sync.md                   # this fork's runbook: merge upstream/main into a fresh branch, keep our plan/, gate, land
 │   ├── owner-mode.md                  # how work lands: .owner pushes main + settles, else next/<id> PRs; rulesets
 │   ├── design-handoff.md              # the Claude Design round trip: prompt, addenda, link, ingest, port, skip list
 │   ├── polyrepo.md                    # variant: plan/ as its own repo + sibling product repos

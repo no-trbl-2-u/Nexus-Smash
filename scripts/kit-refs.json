@@ -30,7 +30,6 @@
     "packages/cli/src/ui/feedback.jsx": 1,
     "packages/cli/test/onboarding-fit.test.mjs": 2,
     "packages/cli/test/repo-start-ui.test.mjs": 2,
-    "playbooks/upgrade.md": 3,
     "scripts/__tests__/generators-nexus.test.mjs": 1,
     "scripts/__tests__/release-reply.test.mjs": 6,
     "scripts/release-reply.mjs": 5,
