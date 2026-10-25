@@ -86,7 +86,7 @@ enforced already.
 ## Contracts
 
 - `board.json` on the `claims` branch; entry fields above.
-- `node scripts/board.mjs note <TYPE> <chunk> "<text>"
+- `node scripts/board.mjs note OBSERVED|FACT|FAIL|PATCH <chunk> "<text>"
   [--detail <file>]`, `snapshot`, `read --all`, `grep
   <expr>`, `unfold <id>`, `prune`.
 - `.nexus/board-cursor.json` per session, untracked.
