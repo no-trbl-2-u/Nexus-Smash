@@ -7,8 +7,8 @@
 
 ## Why
 
-This repo (`no-trbl-2-u/nexus`) was started from upstream
-head `05769d0` on 2026-10-25. Everything that names the
+This repo (`no-trbl-2-u/Nexus-Smash`) was forked from upstream
+on 2026-10-25. Everything that names the
 upstream repo or package still points there (checked
 2026-10-25, 38 files):
 
@@ -36,6 +36,9 @@ CLI's bundled copy and the manual upgrade appendix never
 drift. So a fork that builds itself and hands out a clean
 start needs no new mechanism, only its own identity and a
 sync path.
+
+The comparison that produced this plan is in
+[`reference/`](reference/README.md).
 
 ## Design
 

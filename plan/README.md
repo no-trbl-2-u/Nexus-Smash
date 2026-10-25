@@ -74,6 +74,10 @@ rows follow in table order.
 
 ## Carry-overs
 
+- [`reference/`](reference/README.md) holds the harness
+  comparison behind specs 60-66; donor code is fetched into
+  `.scratch/`, never vendored.
+
 - `AUDIT.md`'s Pending section holds iterate-sized findings;
   they wait until no chunk is ready. Read the file for the
   live count.
