@@ -128,6 +128,15 @@
 //                 fails an oversize fixture. Done rows past 30 days
 //                 are counted in the note, never failed on (age
 //                 alone must not turn an unrelated commit red)
+//   kit           the fork names itself (spec 60): no tracked file
+//                 names the upstream repo (kit.json's upstream, any
+//                 case) or the upstream npm scope, outside kit.json,
+//                 LICENSE, plan/, identity/ and the ratchet list
+//                 scripts/kit-refs.json, which holds each file that
+//                 still does at its count; a new file, a count that
+//                 rose, or one that fell while the list stayed is
+//                 red (lower it with node scripts/kit-id.mjs refs
+//                 --write), so the list only moves down
 //   scripts-git   opt-in — the same scripts end to end in scratch git
 //                 repos in the temp folder (offline, but every case
 //                 spawns git, so tens of seconds), and heartbeat.yml's
@@ -996,6 +1005,7 @@ const PURE_SUITES = [
   'scripts/__tests__/critique-gui.test.mjs',
   'scripts/__tests__/generators-nexus.test.mjs',
   'scripts/__tests__/release-reply.test.mjs',
+  'scripts/__tests__/kit-id.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
@@ -1324,6 +1334,16 @@ async function legStateSize() {
   return { failures: [...failures, ...suite.failures], note: `${own.checked + kit.checked} queue files: headers <= 20 lines, <= ${kb} KB${due}; ${suite.note}` }
 }
 
+// --- leg: kit ---------------------------------------------------------------
+// The fork's identity lives in kit.json; text that still names the
+// upstream kit is a ratchet that only moves down (scripts/kit-id.mjs).
+
+async function legKit() {
+  const { check, REFS_FILE } = await import(pathToFileURL(path.join(ROOT, 'scripts/kit-id.mjs')).href)
+  const res = check(ROOT)
+  return { failures: res.problems, note: `${res.files} files, ${res.refs} references left in ${REFS_FILE}` }
+}
+
 // --- leg: adopt-dryrun ------------------------------------------------------
 // Opt-in — see the file header. Shells out to the standalone
 // script rather than duplicating its logic here.
@@ -1372,6 +1392,7 @@ const LEGS = {
   secrets: () => legSecrets(),
   upgrade: () => legUpgrade(),
   'state-size': () => legStateSize(),
+  kit: () => legKit(),
   'scripts-git': () => runSuites(GIT_SUITES, 'end-to-end'),
   'adopt-dryrun': () => legAdoptDryrun(),
   design: () => legDesign(),
