@@ -118,7 +118,7 @@ by making spec 61's judge the acceptance test.
 ## Chunks
 Measure: 6 open · 0 closed · next A7
 
-- [ ] **64.1** `surface.json` and the `surface` gate leg · S · closes A1 · needs 60.1
+- [ ] **64.1** `surface.json` and the `surface` gate leg · S · closes A1 · needs —
 - [ ] **64.2** Evidence context and the two proposal lenses · M · closes A2 · needs 64.1, 59.1
 - [ ] **64.3** Probe in a throwaway worktree; blind selection · L · closes A3 · needs 64.2, 61.2
 - [ ] **64.4** Adopt only on the judge; ten runs measured · M · closes A4 · needs 64.3, 61.3

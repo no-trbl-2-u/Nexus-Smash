@@ -86,7 +86,6 @@ The comparison that produced this plan is in
 
 ## Acceptance
 
-- **A1** `kit.json` exists, `scripts/kit-id.mjs` prints each field, and the verify gate's `kit` leg fails on any text outside the allow-list that names the upstream repo or the upstream npm scope.
 - **A2** The GUI's help links, clone hint, upgrade runbook link and user agent read `kit.json`; `packages/cli` tests pass; the package name is the fork's scope and `publish.yml` runs only when `NEXUS_PUBLISH` is `1`.
 - **A3** `agents.md` names this repo as the project and in `GH_REPO`; `/triage` on a scratch issue in this repo routes it, not an upstream one.
 - **A4** `playbooks/fork-sync.md` exists, is linked from the README tree, and one merge of upstream main into a scratch branch follows it to a green gate.
@@ -97,11 +96,10 @@ The comparison that produced this plan is in
 - **Q1** The fork's npm scope: `@no-trbl-2-u/cli`, or a new name for the merged kit? Until answered, A2 lands with `publish.yml` gated off and the `github:` install line.
 
 ## Chunks
-Measure: 5 open · 0 closed · next A6
+Measure: 4 open · 1 closed · next A6
 
-- [ ] **60.1** `kit.json`, `kit-id.mjs` and the `kit` gate leg · S · closes A1 · needs —
-- [ ] **60.2** The GUI and workflows read the identity; publish gated · M · closes A2 · needs 60.1
+- [ ] **60.2** The GUI and workflows read the identity; publish gated · M · closes A2 · needs —
   - Keep the GUI's particles, colour and motion.
-- [ ] **60.3** `agents.md`, `GH_REPO` and the mirror point here · S · closes A3 · needs 60.1
-- [ ] **60.4** The fork-sync runbook and one proven merge · S · closes A4 · needs 60.1
+- [ ] **60.3** `agents.md`, `GH_REPO` and the mirror point here · S · closes A3 · needs —
+- [ ] **60.4** The fork-sync runbook and one proven merge · S · closes A4 · needs —
 - [ ] **60.5** A scratch adoption from this fork runs green · M · closes A5 · needs 60.2, 60.3

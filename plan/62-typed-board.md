@@ -109,7 +109,7 @@ enforced already.
 ## Chunks
 Measure: 6 open · 0 closed · next A7
 
-- [ ] **62.1** Board codec, compare-and-swap write, dedup and caps · M · closes A1 · needs 60.1
+- [ ] **62.1** Board codec, compare-and-swap write, dedup and caps · M · closes A1 · needs —
 - [ ] **62.2** `snapshot`, cursors, `grep`, `unfold` · S · closes A2 · needs 62.1
 - [ ] **62.3** `/next` and the builder read and write the board · M · closes A3 · needs 62.2
 - [ ] **62.4** Steer carries board failures and claim collisions · S · closes A4 · needs 62.2

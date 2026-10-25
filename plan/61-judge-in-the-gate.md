@@ -111,7 +111,7 @@ This spec lands first.
 ## Chunks
 Measure: 7 open · 0 closed · next A8
 
-- [ ] **61.1** Acceptance proof lines and `acceptance.mjs` · S · closes A1 · needs 60.1
+- [ ] **61.1** Acceptance proof lines and `acceptance.mjs` · S · closes A1 · needs —
 - [ ] **61.2** The `judge` job with the parent replay · M · closes A2 · needs 61.1
   - Workflow file: ships from a local session (cloud token).
 - [ ] **61.3** The escape ledger and its digest line · M · closes A3 · needs 61.2

@@ -239,3 +239,4 @@ still pending at the move and live on as specs.
 - 2026-10-25 · 57.8 · Iterate dimension I files loop-config rows · 15aa612..15aa612
 - 2026-10-25 · 57 · spec complete: aged candidates promote themselves behind a Held veto window, Pending stays live under re-evidence and a cap, project lanes and generators refill the queue, the motion heartbeat alarms when nothing ships, every lock times out, queue headers stay lean, and /iterate dimension I files loop-config rows at most one a week · 82ad7e47..15aa612
 - 2026-10-25 · 58.6 · Conservative knobs from a registry · 9aefb13..9aefb13
+- 2026-10-25 · 60.1 · kit.json names the fork; kit leg ratchets upstream text · 4578e9c6..4578e9c6
