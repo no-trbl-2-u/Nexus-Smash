@@ -6,6 +6,19 @@
 
 ## Pending
 
+### [needs-user-call] npm scope for the fork's CLI (spec 60 Q1)
+- category: owner
+- impact: 5, ease: 9
+- source: heads-down 60 (2026-10-25)
+- evidence: the CLI is renamed `@no-trbl-2-u/cli` in `kit.json`
+  and `packages/cli/package.json`, and `publish.yml` stays off
+  until the repo variable `NEXUS_PUBLISH` is `1`. Until a scope
+  is published, people run the GUI from a clone
+  (`node packages/cli/bin/nexus.mjs`).
+- next: the owner picks the scope (keep `@no-trbl-2-u/cli` or a
+  new name for the merged kit), creates it on npm with Trusted
+  Publishing bound to this repo, then sets `NEXUS_PUBLISH=1`.
+
 ### [C, 6.3] Kit test suites copied into an adopter fail there, so every adopter scopes or deletes them
 - category: friction
 - impact: 7, ease: 6

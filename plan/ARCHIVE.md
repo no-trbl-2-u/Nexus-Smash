@@ -243,3 +243,5 @@ still pending at the move and live on as specs.
 - 2026-10-25 · 60.3 · agents.md, GH_REPO and triage read this fork · 2acd96cd..2acd96cd
 - 2026-10-25 · 60.4 · fork-sync runbook; one upstream merge reached a green gate · a01fd232..b4cc9733
 - 2026-10-25 · 60.2 · GUI reads kit.json; package renamed; publish gated off · f348548b..b6047543
+- 2026-10-25 · 60.5 · scratch adoption from this fork; first tick green · cb8f9145..bdc8e3f5
+- 2026-10-25 · 60 · spec complete: the fork names itself in kit.json, the GUI and workflows read it, the package and mirror point here, publish is gated, upstream merges by runbook, and a scratch adoption carries only templates and ticks green · absorbed into bearings · 4578e9c6..bdc8e3f5

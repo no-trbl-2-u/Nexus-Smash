@@ -151,6 +151,19 @@ is a `[needs-user-call]`:
 
 - loop: on
 
+## Fork identity
+
+This repo is a fork (spec 60). `kit.json` names it, its
+upstream, its npm package and its docs base; scripts and the
+GUI read it (`scripts/kit-id.mjs`, `packages/cli/shared/kit.mjs`),
+never a spelled-out slug. The `kit` leg ratchets every other
+mention of the upstream repo or scope down
+(`scripts/kit-refs.json`, lowered by `refs --write`, never
+raised by hand). `publish.yml` runs only with `NEXUS_PUBLISH`
+set to `1`. Upstream arrives by merge, never rebase
+(`playbooks/fork-sync.md`); a clean adoption is proven by
+`scripts/adopt-check.mjs`.
+
 ## Support
 
 How hard the loop works an issue (spec 54,

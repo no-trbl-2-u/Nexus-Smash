@@ -35,7 +35,6 @@ line goes; each line is a lock that times out, so it carries
 | 58 | One command keeps a project on the current kit | [58-upgrade.md](58-upgrade.md) | planned · priority 5 | 6 left |
 | 59 | One improvement dial, and a loop that reads the field | [59-improvement-dial.md](59-improvement-dial.md) | planned · priority 6 | 5 left |
 | 39 | The pull-request cloud loop, proven end to end | [39-cloud-loop-proven.md](39-cloud-loop-proven.md) | planned · priority 7 | 5 left |
-| 60 | The fork stands on its own | [60-fork-stands-alone.md](60-fork-stands-alone.md) | planned · priority 8 | 1 left |
 | 61 | A judge in the gate | [61-judge-in-the-gate.md](61-judge-in-the-gate.md) | planned · priority 9 | 7 left |
 | 62 | The typed board | [62-typed-board.md](62-typed-board.md) | planned · priority 10 | 6 left |
 | 63 | The unattended fleet | [63-unattended-fleet.md](63-unattended-fleet.md) | planned · priority 11 | 6 left |
