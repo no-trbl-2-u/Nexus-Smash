@@ -530,6 +530,8 @@ nexus/
 │   ├── kit-id.mjs                     # reads kit.json; refs --write lowers kit-refs.json, the kit leg's ratchet on text naming upstream
 │   ├── kit-refs.json                  # files that still name upstream, at their counts; computed, only moves down
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
+│   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
+│   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)
 │   ├── plan/ui-rows.mjs               # /iterate's H rows: their shape, at most 3 Pending, and the magic guard on next
 │   ├── __tests__/iterate-ui.test.mjs  # its suite, plus H, signal F and the magic guard in the skills (scripts leg)
 │   ├── plan/critique-gui.mjs          # /critique's GUI pass: the onboarding walk or its skip line; walk rows checked

@@ -1006,6 +1006,7 @@ const PURE_SUITES = [
   'scripts/__tests__/generators-nexus.test.mjs',
   'scripts/__tests__/release-reply.test.mjs',
   'scripts/__tests__/kit-id.test.mjs',
+  'scripts/__tests__/adopt-check.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
