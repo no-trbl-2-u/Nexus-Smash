@@ -6,6 +6,52 @@
 
 ## Pending
 
+### [C, 6.3] Kit test suites copied into an adopter fail there, so every adopter scopes or deletes them
+- category: friction
+- impact: 7, ease: 6
+- source: heads-down 60.5 scratch adoption (2026-10-25)
+- evidence: a fresh adopter's `npm test` failed 51 of 836 cases:
+  `scripts/__tests__/refill.test.mjs` reads the live
+  `plan/AUDIT.md`, and `cadence.test.mjs` imports
+  `bootstrap.mjs`, which the adopt prune removes. Each of four
+  scratch adopters scoped `npm test` or deleted the suites.
+- next: suites that ship read fixtures, never the live plan, and
+  `adopt-check.mjs` runs the copied suites in the adopter.
+
+### [D, 5.6] An adopter's tick cannot get back to its primary checkout from the build worktree
+- category: friction
+- impact: 6, ease: 6
+- source: heads-down 60.5 scratch adoption (2026-10-25)
+- evidence: after landing, the adopter tick's `cd <primary> &&
+  git pull --ff-only` and `worktree.mjs close` were refused, so
+  its primary `main` stayed behind origin and the worktree stayed
+  open.
+- next: `next/land.md` runs both with `git -C <primary>` forms the
+  template allowlist covers, or the allowlist gains the exact two
+  commands.
+
+### [D, 4.8] A tests-only chunk has no commit verb, and an adopter without identity/ cannot record a footgun
+- category: friction
+- impact: 5, ease: 7
+- source: heads-down 60.5 scratch adoption (2026-10-25)
+- evidence: the commit-verb guard has no `test:`, so tests-only
+  chunks land as `chore:` or `feat:`; a tick in an adopter that
+  pruned `identity/` had nowhere to put a footgun line.
+- next: add `test:` to the vocabulary in both guard copies and
+  bearings; settle creates `identity/footguns.md` on first use.
+
+### [B, 4.2] nexus run says the repo allowlist applies; in an untrusted folder it does not
+- category: docs
+- impact: 6, ease: 7
+- source: heads-down 60.5 scratch adoption (2026-10-25)
+- evidence: `packages/cli/server/headless.mjs` help says the
+  project allowlist governs the run, but Claude Code ignores a
+  project allowlist in a folder the user has not trusted, so every
+  non-read-only Bash call is denied and the first scratch tick
+  stopped (`customization/claude-code.md` rule 8 now says so).
+- next: `nexus run` checks folder trust first and says how to
+  trust it, or passes the allowlist as flags.
+
 ### [C, 6.3] support.mjs asks gh for authorAssociation, which gh rejects, so Support routing never runs
 - category: correctness
 - impact: 7, ease: 9
