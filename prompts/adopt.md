@@ -60,7 +60,13 @@ Then:
     values you derive from the existing repo state. If a value
     is genuinely unknowable, surface it in plan/AUDIT.md as a
     [needs-user-call] row and continue with a defensible
-    default.
+    default. Swap only the placeholder (and `pnpm`, if the
+    repo uses another package manager); never reword the line
+    around it: a copied skill, command or script stays the
+    kit's text, or the next upgrade cannot merge it. A
+    placeholder with no value here (no deploy gate) gets the
+    neutral fill ../nexus/templates/README.md names.
+    `node ../nexus/scripts/adopt-check.mjs .` checks it.
   - Ask the user ONLY for: (a) the hosting provider name and
     auth token if not visibly configured, (b) the project's
     canonical name + tagline if no spec exists, (c) the

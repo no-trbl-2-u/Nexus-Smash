@@ -280,7 +280,7 @@ that capability.
 |---|---|---|
 | `<CONTENT_LOCATION>` | `agents.md`, `bearings.md`, `ship-a-chunk.md` | Where copy/content lives, e.g. `content/*.mdx` |
 | `<DATA_LOCATION>` | same three | Where structured data lives, e.g. `data/*.json` |
-| `<PROVIDER_AUTH_TOKEN>` | `agents.md` "Operational secrets" | Your hosting provider's real token env var, e.g. `VERCEL_TOKEN` — only if the project has a deploy gate (`pnpm deploy:check`) |
+| `<PROVIDER_AUTH_TOKEN>` | `agents.md` "Operational secrets"; the deploy-gate stop lines in `skills/iterate.md`, `skills/ship-a-chunk.md`, `skills/ship-data.md` | Your hosting provider's real token env var, e.g. `VERCEL_TOKEN`. With no deploy gate, drop the `agents.md` section and fill the skill lines with `DEPLOY_TOKEN` (they never fire); never reword a skill line around it, or the skill drifts from the kit's copy and the next upgrade cannot merge it |
 | `<DOMAIN_SPECIALIST>` / `<SPECIALIST_NAME>` | `agents.md`'s and `bearings.md`'s sub-agent tables; `claude/agents/generic-specialist.md` | Copy `generic-specialist.md`, name it, add the table row — only if the project needs a domain specialist |
 | `<CANONICAL SIBLING>` | `plan/02-canonical-sibling.md`, `plan/README.md` | Your project's first non-substrate feature surface — see "Don't copy these as-is" below |
 
