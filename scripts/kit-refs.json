@@ -1,14 +1,7 @@
 {
   "about": "Files that still name the upstream kit, with their match counts (spec 60). Computed by node scripts/kit-id.mjs refs --write; the kit leg lets a count fall, never rise.",
   "files": {
-    ".github/workflows/cli-ci.yml": 1,
-    ".github/workflows/march.yml": 1,
-    ".github/workflows/publish.yml": 4,
-    "README.md": 9,
-    "agents.md": 1,
-    "scripts/__tests__/generators-nexus.test.mjs": 1,
-    "scripts/__tests__/release-reply.test.mjs": 6,
-    "scripts/release-reply.mjs": 5,
-    "templates/scripts/__tests__/support.test.mjs": 4
+    "README.md": 4,
+    "agents.md": 1
   }
 }

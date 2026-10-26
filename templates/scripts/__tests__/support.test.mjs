@@ -254,10 +254,10 @@ describe('a fixed issue is told and closed (A6)', () => {
   });
 
   it('holds a published package fix open for its release, reopening one a keyword closed', () => {
-    const held = [{ dir: 'packages/cli', name: '@usenexus/cli' }];
+    const held = [{ dir: 'packages/cli', name: '@acme/cli' }];
     const p = tellPlan({ number: 86, commit: fix('fix: gui crash\n\nRefs #86'), held });
     assert.equal(p.action, 'hold');
-    assert.match(p.comment, /^Fixed in abc1234 \(fix: gui crash\): lands in the next @usenexus\/cli release\./);
+    assert.match(p.comment, /^Fixed in abc1234 \(fix: gui crash\): lands in the next @acme\/cli release\./);
     assert.equal(p.reopen, false);
     const shut = tellPlan({ number: 81, commit: fix('fix: gui crash\n\nCloses #81'), held, state: 'CLOSED' });
     assert.equal(shut.action, 'hold');
@@ -275,11 +275,11 @@ describe('a fixed issue is told and closed (A6)', () => {
   it('holds only for a published package (named, not private)', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'support-pkg-'));
     const pkg = (dir, json) => (fs.mkdirSync(path.join(root, 'packages', dir), { recursive: true }), fs.writeFileSync(path.join(root, 'packages', dir, 'package.json'), JSON.stringify(json)));
-    pkg('cli', { name: '@usenexus/cli' });
+    pkg('cli', { name: '@acme/cli' });
     pkg('lab', { name: 'lab', private: true });
     fs.mkdirSync(path.join(root, 'packages', 'bare'), { recursive: true });
     const files = ['packages/cli/src/a.js', 'packages/cli/b.js', 'packages/lab/x.js', 'packages/bare/y.js', 'skills/bug.md'];
-    assert.deepEqual(heldPackages(files, root), [{ dir: 'packages/cli', name: '@usenexus/cli' }]);
+    assert.deepEqual(heldPackages(files, root), [{ dir: 'packages/cli', name: '@acme/cli' }]);
     assert.deepEqual(heldPackages(['skills/bug.md'], root), []);
   });
 
@@ -521,12 +521,12 @@ describe('the command', () => {
     assert.deepEqual(done, [['comment', '88', '--body', 'Fixed in abc1234 (fix: badge), now on the default branch.'], ['close', '88']]);
 
     fs.mkdirSync(path.join(root, 'packages', 'cli'), { recursive: true });
-    fs.writeFileSync(path.join(root, 'packages', 'cli', 'package.json'), '{"name":"@usenexus/cli"}');
+    fs.writeFileSync(path.join(root, 'packages', 'cli', 'package.json'), '{"name":"@acme/cli"}');
     done.length = 0;
     const cli = () => ({ sha: 'abc1234def', subject: 'fix: gui', message: 'fix: gui\n\nRefs #86', files: ['packages/cli/src/x.js'], landed: true });
     assert.match((await run(['tell', '86', '--commit', 'abc1234'], { root, commit: cli, state: () => 'OPEN', act })).out[0], /^hold #86 · touches packages\/cli/);
     assert.deepEqual(done.map((a) => a[0]), ['comment']);
-    assert.match(done[0][3], /lands in the next @usenexus\/cli release/);
+    assert.match(done[0][3], /lands in the next @acme\/cli release/);
   });
 
   it('writes nothing on refuse, wait, dry-run or without gh', async () => {

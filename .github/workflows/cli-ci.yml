@@ -1,6 +1,6 @@
 name: cli-ci
 
-# Tests and builds packages/cli (@usenexus/cli). Deliberately separate
+# Tests and builds packages/cli (the nexus CLI). Deliberately separate
 # from scripts/verify.mjs: the kit's gate never installs packages.
 
 on:

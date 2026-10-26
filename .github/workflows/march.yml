@@ -15,7 +15,7 @@ name: march
 # file, settled and pushed. The owner pauses this workflow with
 # gh workflow disable march; editing this file never re-arms it.
 #
-# nexus is a kit plus a GUI (packages/cli, @usenexus/cli). A tick
+# nexus is a kit plus a GUI (packages/cli, the nexus CLI). A tick
 # installs and builds the CLI so it can gate a packages/cli diff
 # with the CLI's own tests and walk its demo screens
 # (npm run walk). The kit's own gate stays zero-dependency.
@@ -375,6 +375,9 @@ jobs:
           # ACTIONS_PAT (not GITHUB_TOKEN) so the agent's gh calls
           # and pushes identify as the nexus author, not the bot.
           GH_TOKEN: ${{ secrets.ACTIONS_PAT }}
+          # The repo gh and the issue mirror act on (loop-issue.mjs
+          # exits without it): this repo, never a .env's.
+          GH_REPO: ${{ github.repository }}
           # This tick's claims session (scripts/claims.mjs).
           NEXUS_SESSION: cloud-${{ github.run_id }}
           # The same unverified question as the permission note above:
@@ -390,14 +393,14 @@ jobs:
           # and built this tick (the repo variable NEXUS_CLI_GATE
           # unset or '1', and the step green).
           NEXUS_CLI_GATE: ${{ steps.cli_build.outcome == 'success' && '1' || '0' }}
-          # Author identity: display name "nexus", attributed to the
-          # PAT's account via its noreply email. The Cloud-Run:
-          # trailer (not the author) is the ceiling discriminator,
-          # so uniform authorship stays safe.
+          # Author identity: display name "nexus" and a neutral
+          # noreply email, so a fork's ticks name no one's account.
+          # The Cloud-Run: trailer (not the author) is the ceiling
+          # discriminator, so uniform authorship stays safe.
           GIT_AUTHOR_NAME:     'nexus'
-          GIT_AUTHOR_EMAIL:    '7341502+daretodave@users.noreply.github.com'
+          GIT_AUTHOR_EMAIL:    'nexus@users.noreply.github.com'
           GIT_COMMITTER_NAME:  'nexus'
-          GIT_COMMITTER_EMAIL: '7341502+daretodave@users.noreply.github.com'
+          GIT_COMMITTER_EMAIL: 'nexus@users.noreply.github.com'
 
       # The walk's screenshots leave as a run artifact, never as a
       # commit; a tick that did not walk uploads nothing.

@@ -1,8 +1,12 @@
 name: publish
 
-# Publishes packages/cli as @usenexus/cli via npm Trusted Publishing
-# (OIDC). No NPM_TOKEN: npm trusts this workflow file for
-# daretodave/nexus and adds provenance automatically.
+# Publishes packages/cli under the name in its package.json (kit.json's
+# package) via npm Trusted Publishing (OIDC). No NPM_TOKEN: npm trusts
+# this workflow file for this repo and adds provenance automatically.
+# Off until the scope exists on npm and trusts this repo (spec 60): the
+# publish job runs only when the repo variable NEXUS_PUBLISH is 1
+# (gh variable set NEXUS_PUBLISH --body 1); otherwise a tag or a manual
+# run skips it, and the reply job with it.
 # Release: bump packages/cli/package.json, land it, then push an
 # annotated tag cli-v<version>. The reply job then closes the open
 # issues the release fixed (spec 54: Refs #N in the release range,
@@ -23,6 +27,7 @@ concurrency:
 
 jobs:
   publish:
+    if: vars.NEXUS_PUBLISH == '1'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -61,7 +66,7 @@ jobs:
       - name: publish
         working-directory: packages/cli
         # A prerelease version (x.y.z-pre) goes to the `next` dist-tag so
-        # it never becomes `latest` for `npx @usenexus/cli`.
+        # it never becomes the `latest` that npx serves.
         run: |
           v="$(node -p "require('./package.json').version")"
           case "$v" in
@@ -71,7 +76,7 @@ jobs:
 
   # Spec 54 (A11): a cli release closes the issues it fixed. A support
   # fix under packages/cli lands with Refs #N and stays open until npm
-  # has it; this comments "Fixed in @usenexus/cli X.Y.Z" on each open
+  # has it; this comments "Fixed in <package> X.Y.Z" on each open
   # issue labeled triage:loop-queued or bug that the range references,
   # closes it, and lists every other referenced issue in the step
   # summary. Its own job, so the publish job never writes issues.

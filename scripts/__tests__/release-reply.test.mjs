@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-import { decide, main, refsIn, replyText, summary, versionOf } from '../release-reply.mjs';
+import { PACKAGE, decide, main, refsIn, replyText, summary, versionOf } from '../release-reply.mjs';
+import { readKit } from '../kit-id.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -50,7 +51,8 @@ describe('decide', () => {
 
 describe('replyText', () => {
   it('is the contract comment', () => {
-    assert.equal(replyText('0.5.4'), 'Fixed in @usenexus/cli 0.5.4: npx @usenexus/cli@0.5.4');
+    assert.equal(PACKAGE, readKit().package);
+    assert.equal(replyText('0.5.4'), `Fixed in ${PACKAGE} 0.5.4: npx ${PACKAGE}@0.5.4`);
   });
 });
 
@@ -114,8 +116,8 @@ describe('main', () => {
     assert.equal(code, 0);
     const closes = s.calls.filter((c) => c[0] === 'gh' && c[2] === 'close');
     assert.deepEqual(closes, [
-      ['gh', 'issue', 'close', '86', '--comment', 'Fixed in @usenexus/cli 0.5.4: npx @usenexus/cli@0.5.4'],
-      ['gh', 'issue', 'close', '88', '--comment', 'Fixed in @usenexus/cli 0.5.4: npx @usenexus/cli@0.5.4'],
+      ['gh', 'issue', 'close', '86', '--comment', `Fixed in ${PACKAGE} 0.5.4: npx ${PACKAGE}@0.5.4`],
+      ['gh', 'issue', 'close', '88', '--comment', `Fixed in ${PACKAGE} 0.5.4: npx ${PACKAGE}@0.5.4`],
     ]);
     const sum = fs.readFileSync(file, 'utf8');
     assert.match(sum, /Closed \(2\):\n- #86\n- #88/);

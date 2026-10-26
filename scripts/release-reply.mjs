@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // scripts/release-reply.mjs: a cli release closes the issues it fixed (spec 54, A11). nexus only: publish.yml runs it
-// after a `cli-v*` tag publishes @usenexus/cli.
+// after a `cli-v*` tag publishes the CLI (kit.json's package, PACKAGE below).
 //
 // A support fix under packages/cli lands with `Refs #N` and stays open (`support.mjs tell` holds it): main has the fix,
 // npm does not. This reads every `Refs #N` in `git log <previous cli-v tag>..<tag>` and, for each issue still open AND
-// labeled `triage:loop-queued` or `bug`, comments "Fixed in @usenexus/cli X.Y.Z: npx @usenexus/cli@X.Y.Z" and closes
+// labeled `triage:loop-queued` or `bug`, comments "Fixed in <package> X.Y.Z: npx <package>@X.Y.Z" and closes
 // it. Any other referenced issue (closed already, unlabeled, unreadable) is left alone and listed in the step summary.
 //
 // The previous tag is the newest stable `cli-v*` tag before <tag>, so a stable release covers every commit since the
-// last stable one. A prerelease tag (cli-vX.Y.Z-pre) publishes to npm's `next` dist-tag, which `npx @usenexus/cli`
+// last stable one. A prerelease tag (cli-vX.Y.Z-pre) publishes to npm's `next` dist-tag, which `npx <package>`
 // does not serve: it closes nothing and lists what it would have closed.
 //
 //   node scripts/release-reply.mjs <cli-vX.Y.Z> [--dry-run] [--summary <file>]
@@ -20,8 +20,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readKit } from './kit-id.mjs';
 
-export const PACKAGE = '@usenexus/cli';
+/** The npm package a release publishes: kit.json's package (spec 60). */
+export const PACKAGE = readKit().package;
 export const LABELS = ['triage:loop-queued', 'bug'];
 const TAG = /^cli-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
 const REFS = /\bRefs[ \t]*:?[ \t]+#(\d+)(?!\d)/gi;

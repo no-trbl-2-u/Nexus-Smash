@@ -9,7 +9,6 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-d97757)](https://claude.com/claude-code)
-[![npm: @usenexus/cli](https://img.shields.io/npm/v/@usenexus/cli?label=npx%20%40usenexus%2Fcli)](https://www.npmjs.com/package/@usenexus/cli)
 [![Status: stable](https://img.shields.io/badge/status-stable-success)](#)
 [![Methodology + templates](https://img.shields.io/badge/kind-methodology%20%2B%20templates-lightgrey)](#)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](./CONTRIBUTING.md)
@@ -22,16 +21,22 @@ plan of chunks, and `/next` ready to build the first.
 ### 1. Using Claude Code? A GUI on us, free.
 
 ```bash
-npx @usenexus/cli
+git clone https://github.com/no-trbl-2-u/Nexus-Smash.git nexus
+cd nexus
+npm --prefix packages/cli ci
+npm --prefix packages/cli run build
+node packages/cli/bin/nexus.mjs --repo <your project>
 ```
 
-Run it at your project's root. It starts a local server on
+The CLI (`@no-trbl-2-u/cli`) is not on npm yet, so it runs from a
+clone; once it publishes, `npx @no-trbl-2-u/cli` at your project's
+root does the same. Point it at your project's root. It starts a local server on
 `127.0.0.1`, opens your browser, and drives your own Claude
 Code login: no API key, no account. It adopts nexus if the
 repo is new, then opens a live cockpit per session
 ([`packages/cli`](./packages/cli/README.md)). For scripts,
-`npx @usenexus/cli run "<prompt>"` answers one prompt headless
-and prints JSON.
+`node packages/cli/bin/nexus.mjs run "<prompt>"` answers one
+prompt headless and prints JSON.
 
 #### The GUI in motion
 
