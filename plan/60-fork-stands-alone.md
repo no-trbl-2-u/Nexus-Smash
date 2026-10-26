@@ -86,7 +86,6 @@ The comparison that produced this plan is in
 
 ## Acceptance
 
-- **A2** The GUI's help links, clone hint, upgrade runbook link and user agent read `kit.json`; `packages/cli` tests pass; the package name is the fork's scope and `publish.yml` runs only when `NEXUS_PUBLISH` is `1`.
 - **A5** A scratch repo adopted from this fork (paste prompt or GUI onboarding) carries this fork's `templates/` files, no file from this repo's `plan/` or `identity/`, and its first `/march` tick runs green.
 
 ## Open questions
@@ -94,8 +93,6 @@ The comparison that produced this plan is in
 - **Q1** The fork's npm scope: `@no-trbl-2-u/cli`, or a new name for the merged kit? Until answered, A2 lands with `publish.yml` gated off and the `github:` install line.
 
 ## Chunks
-Measure: 2 open · 3 closed · next A6
+Measure: 1 open · 4 closed · next A6
 
-- [ ] **60.2** The GUI and workflows read the identity; publish gated · M · closes A2 · needs —
-  - Keep the GUI's particles, colour and motion.
-- [ ] **60.5** A scratch adoption from this fork runs green · M · closes A5 · needs 60.2
+- [ ] **60.5** A scratch adoption from this fork runs green · M · closes A5 · needs —

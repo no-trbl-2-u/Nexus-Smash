@@ -242,3 +242,4 @@ still pending at the move and live on as specs.
 - 2026-10-25 · 60.1 · kit.json names the fork; kit leg ratchets upstream text · 4578e9c6..4578e9c6
 - 2026-10-25 · 60.3 · agents.md, GH_REPO and triage read this fork · 2acd96cd..2acd96cd
 - 2026-10-25 · 60.4 · fork-sync runbook; one upstream merge reached a green gate · a01fd232..b4cc9733
+- 2026-10-25 · 60.2 · GUI reads kit.json; package renamed; publish gated off · f348548b..b6047543
