@@ -1,5 +1,5 @@
 {
-  "name": "@no-trbl-2-u/cli",
+  "name": "@nexus-smash/cli",
   "version": "0.5.4",
   "description": "nexus: a local GUI for Claude Code that runs the nexus loop on your repo.",
   "license": "MIT",

@@ -1,4 +1,4 @@
-# @no-trbl-2-u/cli
+# @nexus-smash/cli
 
 Using Claude Code? Enjoy a GUI on us. For free.
 
@@ -12,7 +12,7 @@ npm --prefix packages/cli run build
 node packages/cli/bin/nexus.mjs --repo <your project>
 ```
 
-Once it publishes, `npx @no-trbl-2-u/cli` from your project's root does
+Once it publishes, `npx @nexus-smash/cli` from your project's root does
 the same. Below, `nexus` stands for either line.
 
 Point it at your project's root. It starts a local server on

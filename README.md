@@ -28,8 +28,8 @@ npm --prefix packages/cli run build
 node packages/cli/bin/nexus.mjs --repo <your project>
 ```
 
-The CLI (`@no-trbl-2-u/cli`) is not on npm yet, so it runs from a
-clone; once it publishes, `npx @no-trbl-2-u/cli` at your project's
+The CLI (`@nexus-smash/cli`) is not on npm yet, so it runs from a
+clone; once it publishes, `npx @nexus-smash/cli` at your project's
 root does the same. Point it at your project's root. It starts a local server on
 `127.0.0.1`, opens your browser, and drives your own Claude
 Code login: no API key, no account. It adopts nexus if the

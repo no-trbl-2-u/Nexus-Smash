@@ -99,7 +99,7 @@ describe('cli-ci-red', () => {
 // ---- cli-deps ----------------------------------------------------------------------------------------------------
 
 const PKG = `${JSON.stringify({
-  name: '@no-trbl-2-u/cli',
+  name: '@nexus-smash/cli',
   dependencies: { '@anthropic-ai/claude-agent-sdk': '0.3.305' },
   devDependencies: { react: '19.3.1', vite: '8.3.4', 'jetbrains-mono': '1.0.6' },
 }, null, 2)}\n`;

@@ -1,6 +1,6 @@
 {
   "repo": "no-trbl-2-u/Nexus-Smash",
   "upstream": "daretodave/nexus",
-  "package": "@no-trbl-2-u/cli",
+  "package": "@nexus-smash/cli",
   "docs": "https://github.com/no-trbl-2-u/Nexus-Smash/blob/main"
 }
