@@ -66,16 +66,17 @@ test('the Plot step names the spec: explode\'s file, else the next number, and "
 
 test('toasts: a kit doc they name is a link, and the host lifts clear of a footer or the composer', async () => {
   const { docParts, toastHostClass, ToastHost } = await import('../src/ui/feedback.jsx');
-  const blob = 'https://github.com/daretodave/nexus/blob/main/customization/secrets.md';
+  const { KIT } = await import('../shared/kit.mjs');
+  const blob = `${KIT.docs}/customization/secrets.md`;
   assert.deepEqual(docParts(`update the repo's secrets scripts (${blob})`), ["update the repo's secrets scripts (", { path: 'customization/secrets.md', href: blob }, ')']);
-  assert.deepEqual(docParts('see nexus/playbooks/upgrade.md first'), ['see ', { path: 'playbooks/upgrade.md', href: 'https://github.com/daretodave/nexus/blob/main/playbooks/upgrade.md' }, ' first']);
+  assert.deepEqual(docParts('see nexus/playbooks/upgrade.md first'), ['see ', { path: 'playbooks/upgrade.md', href: `${KIT.docs}/playbooks/upgrade.md` }, ' first']);
   assert.deepEqual(docParts('plain words, agents.md stays text'), ['plain words, agents.md stays text']);
   assert.equal(toastHostClass(), 'toast-host');
   assert.equal(toastHostClass('foot'), 'toast-host is-clear-foot');
   assert.equal(toastHostClass('composer'), 'toast-host is-clear-composer');
   const out = html(createElement(ToastHost, { clear: 'foot', toasts: [{ id: 1, kind: 'error', title: 'Not written', body: 'see customization/secrets.md' }] }));
   assert.match(out, /^<div class="toast-host is-clear-foot">/);
-  assert.match(out, /<a href="https:\/\/github\.com\/daretodave\/nexus\/blob\/main\/customization\/secrets\.md" target="_blank" rel="noreferrer">customization\/secrets\.md<\/a>/);
+  assert.ok(out.includes(`<a href="${blob}" target="_blank" rel="noreferrer">customization/secrets.md</a>`), out);
   assert.doesNotMatch(out, /style="position:fixed/, 'placement lives in toast-host.css, not inline');
   const css = read('../src/styles/toast-host.css');
   const foot = Number(/^\.toast-host\.is-clear-foot \{ bottom: (\d+)px/m.exec(css)?.[1]);

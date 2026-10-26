@@ -9,6 +9,8 @@
 //     the same). With no such tab, the bar says to use the link the terminal printed.
 // Only pages on this origin hear the channel, and such a page can already reach the server: nothing is exposed, and
 // no token is written anywhere it is not already (server.json holds it, owner-only).
+import { KIT } from './kit.js';
+
 export const DOWN_MS = 5000;
 export const POLL_MS = 2000;
 export const CHANNEL = 'nexus-launch';
@@ -29,7 +31,7 @@ export function subscribeHealth(fn) {
 /** What the bar says for a state: { text, action: 'reload' | null } or null when nothing is wrong. */
 export function healthWords(s) {
   if (!s || s.status === 'ok') return null;
-  if (s.status === 'down') return { text: 'nexus stopped. Launch it again (npx @usenexus/cli) and this tab reconnects.', action: null };
+  if (s.status === 'down') return { text: `nexus stopped. Launch it again (${KIT.launch}) and this tab reconnects.`, action: null };
   if (s.status === 'restarted') return { text: 'nexus restarted since this tab opened. Use the link it printed in the terminal.', action: null };
   if (s.status === 'updated') return { text: `nexus updated to ${s.version} · Reload for the new screens.`, action: 'reload' };
   return null;

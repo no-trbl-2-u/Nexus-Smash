@@ -12,6 +12,7 @@
 //   request: { chunk, names, missing, file, line, date }
 
 import { DESTINATIONS } from '../../../shared/stack/destinations.mjs';
+import { kitDoc } from '../../data/kit.js';
 
 /** A stored value, always: eight dots, whatever its length (the design's rule: a length never leaks). */
 export const MASK = '\u2022'.repeat(8);
@@ -617,7 +618,7 @@ export function secretsLine(status, pick) {
 // ---- a mature repo's vault (spec 47, A2) ---------------------------------------------------------------------------
 
 /** The docs page the vault's empty states link to. */
-export const VAULT_DOCS = 'https://github.com/daretodave/nexus/blob/main/customization/secrets.md';
+export const VAULT_DOCS = kitDoc('customization/secrets.md');
 
 /** True when GET /api/secrets says the repo has no vault scripts yet (an empty state, never an error). */
 export const vaultMissing = (status) => !!status && (status.vaultState === 'missing' || status.available === false);

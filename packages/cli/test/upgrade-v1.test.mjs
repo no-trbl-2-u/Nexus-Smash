@@ -273,5 +273,8 @@ test('flags a later release carries are refused, never ignored; --help prints th
   assert.equal(await runUpgrade(['--bogus'], { out, err: out }), 2);
   const help = sink();
   assert.equal(await runUpgrade(['--help'], { out: help }), 0);
-  assert.match(help.text(), /npx @usenexus\/cli upgrade --repo <dir>/);
+  assert.match(help.text(), /\n  nexus upgrade --repo <dir>/);
+  const { KIT, launchLine } = await import('../shared/kit.mjs');
+  assert.ok(help.text().includes(`Here nexus means ${launchLine()}.`));
+  assert.ok(help.text().includes(`The runbook: ${KIT.docs}/playbooks/upgrade.md`));
 });

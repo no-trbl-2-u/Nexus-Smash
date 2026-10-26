@@ -6,7 +6,7 @@
 // The environment each run gets: the server's own, minus CLAUDECODE and every CLAUDE_CODE_* variable, plus the acting
 // session's NEXUS_SESSION and NEXUS_GH_LOGIN (always set, '' when gh can't say, so the CLI never asks gh itself).
 // The server is not a Claude Code session: it acts for the person at the page. A server started from inside a Claude
-// Code session (a Bash call running `npx @usenexus/cli`) would otherwise hand that session's variables on, and the
+// Code session (a Bash call running the nexus CLI) would otherwise hand that session's variables on, and the
 // CLI would refuse `claim` for want of that session's hook marker (customization/claims.md, "No hooks, no claim"),
 // or claim under that session's id. NEXUS_SESSION names the claim's owner; nothing else does.
 import { execFile } from 'node:child_process';

@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run as shRun, json, SAFE_ARG } from './sh.mjs';
 import { gitRun, placeOf } from './place.mjs';
+import { launchLine } from '../shared/kit.mjs';
 
 export { gitRun };
 
@@ -93,6 +94,7 @@ const q = (s) => `"${String(s).replace(/"/g, '')}"`;
 export function guideFor(why, ctx = {}) {
   const win = ctx.platform === 'win32';
   const mac = ctx.platform === 'darwin';
+  const launch = launchLine();
   const owner = ctx.owner || 'you';
   const name = ctx.name || ctx.slug || 'my-project';
   const https = `https://github.com/${owner}/${name}.git`;
@@ -105,8 +107,8 @@ export function guideFor(why, ctx = {}) {
     ];
     case 'gh-missing': return [win ? 'winget install --id GitHub.cli -e' : mac ? 'brew install gh' : 'sudo apt install gh', 'gh auth login'];
     case 'gh-signed-out': return ['gh auth login'];
-    case 'nested': return [`npx @usenexus/cli --repo ${q(ctx.top || '..')}`];
-    case 'refused': return win ? [`mkdir ${ctx.slug || 'my-project'}; cd ${ctx.slug || 'my-project'}; npx @usenexus/cli`] : [`mkdir ${ctx.slug || 'my-project'} && cd ${ctx.slug || 'my-project'} && npx @usenexus/cli`];
+    case 'nested': return [`${launch} --repo ${q(ctx.top || '..')}`];
+    case 'refused': return win ? [`mkdir ${ctx.slug || 'my-project'}; cd ${ctx.slug || 'my-project'}; ${launch}`] : [`mkdir ${ctx.slug || 'my-project'} && cd ${ctx.slug || 'my-project'} && ${launch}`];
     case 'other-remote': return [];
     case 'exists': return [`git remote add origin ${https}`, `git push -u origin ${ctx.branch || BRANCH}`];
     case 'push-auth': return ['gh auth setup-git'];

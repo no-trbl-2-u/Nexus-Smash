@@ -94,10 +94,10 @@ test('RepoStart guidance: missing identity offers the gh name and the copyable c
   const signedOut = html(start({ place: 'local', next: 'remote', gh: { ...GH, signedIn: false, login: null }, repo: { branch: 'main', commits: 1, head: 'a', remote: null, pushed: null }, guide: { 'gh-signed-out': ['gh auth login'] } }));
   assert.match(signedOut, /gh is not signed in/);
   assert.match(signedOut, /gh auth login/);
-  const nested = html(start({ place: 'nested', next: 'blocked', why: 'nested', folder: { name: 'sub', slug: 'sub', top: '/w/big' }, guide: { nested: ['npx @usenexus/cli --repo "/w/big"'] } }));
+  const nested = html(start({ place: 'nested', next: 'blocked', why: 'nested', folder: { name: 'sub', slug: 'sub', top: '/w/big' }, guide: { nested: ['nexus --repo "/w/big"'] } }));
   assert.match(nested, /inside the repo at \/w\/big/);
   assert.doesNotMatch(nested, /Start the repo/, 'no init button, ever');
-  const refused = html(start({ place: 'refused', next: 'blocked', why: 'refused', folder: { name: 'me', slug: 'me', refusedAs: 'home' }, guide: { refused: ['mkdir me && cd me && npx @usenexus/cli'] } }));
+  const refused = html(start({ place: 'refused', next: 'blocked', why: 'refused', folder: { name: 'me', slug: 'me', refusedAs: 'home' }, guide: { refused: ['mkdir me && cd me && nexus'] } }));
   assert.match(refused, /This is your home folder/);
   assert.equal(html(start(), { res: { status: 'missing', data: null } }), '', 'an older server: nothing drawn');
 });

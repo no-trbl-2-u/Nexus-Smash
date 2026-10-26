@@ -354,7 +354,7 @@ the reason (the 41.3 close carries the same list):
   `.view` scrolls for the same reason.
 - **Reader-only copy:** Launch's "collapse 1.6s..." caption (the
   motion is kept); the Welcome prompt and CloudSetup preview show
-  the real prompt and workflow, not `npx @usenexus/cli readme` and
+  the real prompt and workflow, not `npx @no-trbl-2-u/cli readme` and
   `loop --once`.
 - **Authoring slips not copied:** Inbox's "Why the default:" with
   no space, and Detect's Claude Code row without its check mark.

@@ -9,6 +9,7 @@ import ErrorBoundary from './ui/ErrorBoundary.jsx';
 import { newerFeed } from './ui/change-feed.js';
 import { fromInbox } from './screens/headsdown-inbox/inboxModel.js';
 import { PATHS } from './routes.js';
+import { KIT } from './data/kit.js';
 // Every screen is its own chunk, fetched when its route first renders, so
 // the first paint loads the shell and one screen, not all ten. Once the
 // first screen is up, the rest are fetched in the background, so moving
@@ -116,7 +117,7 @@ function Shell() {
             title="This page needs its launch link"
             body={restarted
               ? 'nexus restarted since this tab opened. Use the link it printed in the terminal: each launch prints one with its own token.'
-              : 'Each launch of npx @usenexus/cli prints a link that carries its own token. Open that link, or relaunch and open the new one.'}
+              : `Each launch of ${KIT.launch} prints a link that carries its own token. Open that link, or relaunch and open the new one.`}
             detail={restarted ? undefined : app.error}
           />
         </main>

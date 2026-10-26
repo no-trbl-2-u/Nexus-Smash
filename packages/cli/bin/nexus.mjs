@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// npx @usenexus/cli [--repo <dir>] [--port <n>] [--no-open]
-// npx @usenexus/cli run "<prompt>" [--cwd <dir>]   one turn headless, JSON out
-// npx @usenexus/cli upgrade [--repo <dir>] [--json]   a v1 repo to v2, dry run (server/upgrade.mjs)
-// npx @usenexus/cli --demo <scenario> [--speed <n>] [--loop]   fixtures and a beat script, no repo
+// nexus [--repo <dir>] [--port <n>] [--no-open]
+// nexus run "<prompt>" [--cwd <dir>]   one turn headless, JSON out
+// nexus upgrade [--repo <dir>] [--json]   a v1 repo to v2, dry run (server/upgrade.mjs)
+// nexus --demo <scenario> [--speed <n>] [--loop]   fixtures and a beat script, no repo
+// (nexus is this bin: shared/kit.mjs launchLine() says how this copy starts, LAUNCH how a clone does.)
 //
 // Starts the nexus GUI on 127.0.0.1 (random port, per-launch token) for
 // the repo in the current directory and opens it in the browser. One
@@ -14,6 +15,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import http from 'node:http';
 import { startServer } from '../server/server.mjs';
+import { kitUrl, launchLine } from '../shared/kit.mjs';
 import { primaryRoot } from '../server/sessions.mjs';
 import { claimLock, findRunning, pidAlive, readLast, removeInstance, writeInstance, writeLast } from '../server/instance.mjs';
 
@@ -48,28 +50,29 @@ const opt = (name) => {
 if (flag('--help') || flag('-h')) {
   console.log(`nexus: a GUI for Claude Code that runs the nexus loop on your repo.
 
-  npx @usenexus/cli                 open the GUI for the repo in this folder
-  npx @usenexus/cli --repo <dir>    ...for another folder
-  npx @usenexus/cli --no-open       print the URL instead of opening a browser
-  npx @usenexus/cli --port <n>      a fixed port (default: the last launch's,
-                                    else any free port)
-                                    (a server already running for the repo is
-                                    reused: its link opens instead)
-  npx @usenexus/cli --replace       stop this repo's running server the safe
-                                    way (every session parked), then start:
-                                    how a newer version takes over
-  npx @usenexus/cli run "<prompt>"  one turn headless, JSON out (run --help)
-  npx @usenexus/cli upgrade         a nexus v1 repo to v2: a dry run from a
-                                    fresh fetch of origin (upgrade --help)
-  npx @usenexus/cli --demo <name>   a scripted demo: fixtures and a timed beat
-                                    script, no repo, no Claude, no network, no
-                                    writes (--demo list names them; --speed <n>
-                                    runs the script n times faster; --loop
-                                    starts it over when it ends)
+  nexus                 open the GUI for the repo in this folder
+  nexus --repo <dir>    ...for another folder
+  nexus --no-open       print the URL instead of opening a browser
+  nexus --port <n>      a fixed port (default: the last launch's,
+                        else any free port)
+                        (a server already running for the repo is
+                        reused: its link opens instead)
+  nexus --replace       stop this repo's running server the safe
+                        way (every session parked), then start:
+                        how a newer version takes over
+  nexus run "<prompt>"  one turn headless, JSON out (run --help)
+  nexus upgrade         a nexus v1 repo to v2: a dry run from a
+                        fresh fetch of origin (upgrade --help)
+  nexus --demo <name>   a scripted demo: fixtures and a timed beat
+                        script, no repo, no Claude, no network, no
+                        writes (--demo list names them; --speed <n>
+                        runs the script n times faster; --loop
+                        starts it over when it ends)
 
-  NEXUS_PROVIDER=cli                drive \`claude -p\` instead of the Agent SDK
+  NEXUS_PROVIDER=cli    drive \`claude -p\` instead of the Agent SDK
 
-  The kit: https://github.com/daretodave/nexus`);
+  Here nexus means ${launchLine()}.
+  The kit: ${kitUrl()}`);
   process.exit(0);
 }
 
@@ -94,7 +97,7 @@ async function demo() {
   const name = opt('--demo');
   if (!name || name.startsWith('-') || name === 'list') {
     const rows = scenarioNames().map((n) => `  ${n.padEnd(17)}${SCENARIOS[n].summary}`).join('\n');
-    console.log(`  npx @usenexus/cli --demo <scenario> [--speed <n>] [--loop] [--no-open]\n\n${rows}\n`);
+    console.log(`  ${launchLine()} --demo <scenario> [--speed <n>] [--loop] [--no-open]\n\n${rows}\n`);
     process.exit(name === 'list' ? 0 : 2);
   }
   let d;

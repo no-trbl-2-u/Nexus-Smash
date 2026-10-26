@@ -56,6 +56,7 @@ import { MAX_IMAGE, MAX_SEND_BODY, MAX_TOTAL, readAttachments, sizeWords } from 
 import { needsFrom } from '../shared/needs.mjs';
 import { saveUploads, uploadFile } from './uploads.mjs';
 import { EFFORTS, HELPER_MODEL, MODELS, effortsFor, modelLabel, validEffort, validModel } from '../shared/models.mjs';
+import { cloneUrl } from '../shared/kit.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** How often the top bar's needs are looked at again while a tab watches. */
@@ -66,7 +67,7 @@ const MAX_BODY = 1024 * 1024;
 const MAX_UPLOAD_BODY = Math.ceil(MAX_IMAGE * 4 / 3) + 64 * 1024;
 
 export const ADOPT_PASTE = [
-  'Clone https://github.com/daretodave/nexus.git to',
+  `Clone ${cloneUrl()} to`,
   "../nexus (or use ./.nexus if submoduled) if you haven't",
   'already, then read and follow ../nexus/prompts/adopt.md',
   'exactly, in order. Do not skip steps or invent scope beyond',

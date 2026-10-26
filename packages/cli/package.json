@@ -1,7 +1,7 @@
 {
-  "name": "@usenexus/cli",
+  "name": "@no-trbl-2-u/cli",
   "version": "0.5.4",
-  "description": "nexus: a local GUI for Claude Code that runs the nexus loop on your repo. npx @usenexus/cli",
+  "description": "nexus: a local GUI for Claude Code that runs the nexus loop on your repo.",
   "license": "MIT",
   "type": "module",
   "bin": {
@@ -47,10 +47,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/daretodave/nexus.git",
+    "url": "git+https://github.com/no-trbl-2-u/Nexus-Smash.git",
     "directory": "packages/cli"
   },
-  "homepage": "https://github.com/daretodave/nexus#readme",
+  "homepage": "https://github.com/no-trbl-2-u/Nexus-Smash#readme",
   "keywords": [
     "claude-code",
     "nexus",

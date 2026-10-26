@@ -36,14 +36,16 @@ import { json, track } from './sh.mjs';
 import { gitEnv } from './cloud.mjs';
 import { findScript, kitScripts, PROGRESS_SCRIPTS, CHUNK_ID } from './repo.mjs';
 import { listedIds, settledPlan, specFile } from './reorder.mjs';
+import { kitDoc } from '../shared/kit.mjs';
 
 export const ORDER_SCRIPTS = kitScripts('order.mjs', { home: 'scripts/plan' });
+
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The CLI's bundled copy of the kit's plan scripts (templates/scripts' layout: plan/order.mjs beside plan-check.mjs). */
 export const PLAN_BUNDLED = path.join(PKG, 'kit', 'scripts');
 const PLAN_TEMPLATES = path.resolve(PKG, '..', '..', 'templates', 'scripts');
 export const PLAN_ENTRIES = Object.freeze(['plan/order.mjs', 'plan/progress.mjs']);
-export const PLAN_DOCS = 'https://github.com/daretodave/nexus/blob/main/concepts/plan-shape.md';
+export const PLAN_DOCS = kitDoc('concepts/plan-shape.md');
 export const BUNDLED_LABEL = "nexus's bundled copy";
 
 /**

@@ -1,12 +1,21 @@
-# @usenexus/cli
+# @no-trbl-2-u/cli
 
 Using Claude Code? Enjoy a GUI on us. For free.
 
+The package is not on npm yet, so it runs from a clone of the kit:
+
 ```
-npx @usenexus/cli
+git clone https://github.com/no-trbl-2-u/Nexus-Smash.git nexus
+cd nexus
+npm --prefix packages/cli ci
+npm --prefix packages/cli run build
+node packages/cli/bin/nexus.mjs --repo <your project>
 ```
 
-Run it from your project's root. It starts a local server on
+Once it publishes, `npx @no-trbl-2-u/cli` from your project's root does
+the same. Below, `nexus` stands for either line.
+
+Point it at your project's root. It starts a local server on
 `127.0.0.1` (random port, a token per launch, strict Host and Origin
 checks), opens your browser, and drives your own Claude Code login.
 You need no API key.
@@ -145,20 +154,20 @@ from nexus `prompts/`, ready to paste.
 ## Options
 
 ```
-npx @usenexus/cli --repo <dir>   another folder
-npx @usenexus/cli --no-open      print the link instead of opening it
-npx @usenexus/cli --port <n>     a fixed port (default: the last launch's, when free)
-npx @usenexus/cli --replace      stop this repo's running nexus the safe way, then start (an upgrade)
-NEXUS_PROVIDER=cli               use `claude -p` stream-json instead of the Agent SDK
-npx @usenexus/cli --demo <name>  a scripted demo (below): no repo, no Claude, no network
-npx @usenexus/cli upgrade        a nexus v1 repo to v2, dry run (below)
+nexus --repo <dir>   another folder
+nexus --no-open      print the link instead of opening it
+nexus --port <n>     a fixed port (default: the last launch's, when free)
+nexus --replace      stop this repo's running nexus the safe way, then start (an upgrade)
+NEXUS_PROVIDER=cli   use `claude -p` stream-json instead of the Agent SDK
+nexus --demo <name>  a scripted demo (below): no repo, no Claude, no network
+nexus upgrade        a nexus v1 repo to v2, dry run (below)
 ```
 
 ## Demo: fixtures and a timed beat script
 
 ```
-npx @usenexus/cli --demo list
-npx @usenexus/cli --demo fleet-to-tug [--speed <n>] [--loop] [--port <n>] [--no-open]
+nexus --demo list
+nexus --demo fleet-to-tug [--speed <n>] [--loop] [--port <n>] [--no-open]
 ```
 
 `--demo` serves the real UI over a scenario's fixtures and replays its
@@ -193,7 +202,7 @@ tests. The scenarios live in `server/demo/scenarios.mjs`, the player in
 
 One server runs per repo. It writes `.nexus/server.json` (port and
 token, owner-only, kept out of git) at the primary checkout's root,
-and a second `npx @usenexus/cli` in the same repo prints and opens
+and a second `nexus` in the same repo prints and opens
 that server's link instead of starting another. A record whose
 process is gone, or whose server does not answer, is replaced.
 
@@ -295,9 +304,9 @@ configuration, as the repo's scan does.
 ## Headless: one prompt, JSON out
 
 ```
-npx @usenexus/cli run "summarize plan/README.md"
-echo "what ships next?" | npx @usenexus/cli run -
-npx @usenexus/cli run --cwd ../other-repo "..."
+nexus run "summarize plan/README.md"
+echo "what ships next?" | nexus run -
+nexus run --cwd ../other-repo "..."
 ```
 
 `run` answers one prompt in one turn through the Agent SDK on your
@@ -317,7 +326,7 @@ the server uses.
 
 Options: `--cwd <dir>` (default: this folder), `--model <name>`,
 `--permission-mode <mode>`, `--json` (the default, accepted for
-scripts), `-` to read the prompt from stdin. `npx @usenexus/cli run
+scripts), `-` to read the prompt from stdin. `nexus run
 --help` lists them.
 
 Permissions stay safe by default. The mode is `default`, and the
@@ -332,10 +341,10 @@ or `plan`. `bypassPermissions` is refused.
 ## Upgrade: a v1 repo, dry run first
 
 ```
-npx @usenexus/cli upgrade                 the repo in this folder
-npx @usenexus/cli upgrade --repo <dir>    another folder
-npx @usenexus/cli upgrade --json          the report as JSON
-npx @usenexus/cli upgrade --keep-workflow leave march.yml as it is (report only)
+nexus upgrade                 the repo in this folder
+nexus upgrade --repo <dir>    another folder
+nexus upgrade --json          the report as JSON
+nexus upgrade --keep-workflow leave march.yml as it is (report only)
 ```
 
 `upgrade` moves a nexus v1 repo (a phase plan:
@@ -530,4 +539,4 @@ fails to start, 2 on a bad flag or no Chrome. It is never a CI gate
 and never a screenshot diff; the loop reads the findings and decides.
 The rules are plain functions, tested in `test/walk.test.mjs`.
 
-The kit: https://github.com/daretodave/nexus
+The kit: https://github.com/no-trbl-2-u/Nexus-Smash

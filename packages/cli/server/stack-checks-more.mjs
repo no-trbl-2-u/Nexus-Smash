@@ -6,6 +6,7 @@
 // CHECKS here is the full map server/stack.mjs dispatches on: the first three from stack-checks.mjs plus these.
 import crypto from 'node:crypto';
 import { CHECKS as FIRST, attempt, reasonFor, pickFacts } from './stack-checks.mjs';
+import { kitUrl } from '../shared/kit.mjs';
 
 const enc = encodeURIComponent;
 const sha256hex = (x) => crypto.createHash('sha256').update(x).digest('hex');
@@ -251,7 +252,8 @@ export async function checkFly(fetchImpl, { token, app } = {}) {
 
 // ---- Discord, Slack, Twilio, Resend -------------------------------------------------------------------------------
 
-const DISCORD_UA = 'DiscordBot (https://github.com/daretodave/nexus, 1)';
+/** Discord asks for `DiscordBot (<url>, <version>)`; the url is this kit's repo. */
+export const DISCORD_UA = `DiscordBot (${kitUrl()}, 1)`;
 
 /** Discord: who the bot is, then its application (the public key compared, never sent). */
 export async function checkDiscord(fetchImpl, { botToken, publicKey } = {}) {

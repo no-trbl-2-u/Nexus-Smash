@@ -15,6 +15,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ViewFrame, ViewHead, ViewTitle, InboxBtn, Icon, Flag, Seg, ChoiceButtons, ToastHost, Err, cx, useShell } from '../ui/index.js';
 import { useDesign, server } from '../data/index.js';
 import { PATHS } from '../routes.js';
+import { KIT } from '../data/kit.js';
 import { useToasts } from './fleet/toasts.js';
 import { plural } from './fleet/util.js';
 import { artifactLink } from '../../shared/design-link.mjs';
@@ -112,7 +113,7 @@ export default function Design() {
   let main;
   if (res.status === 'loading') main = <Empty title="Reading the handoffs" body="Asking the repo's port map for each board's status." />;
   else if (res.status === 'error') main = <Err title="Couldn't read the design handoffs" body="Nothing was changed." detail={res.error} actions={<button className="btn btn-s" type="button" onClick={res.reload}>Try again</button>} />;
-  else if (res.status === 'missing') main = <Empty title="This server doesn't read handoffs yet" body="Update @usenexus/cli to see the gallery. Hand off a design still works from a terminal: /design ingest <link>." />;
+  else if (res.status === 'missing') main = <Empty title="This server doesn't read handoffs yet" body={`Update ${KIT.package} to see the gallery. Hand off a design still works from a terminal: /design ingest <link>.`} />;
   else if (!data.available) main = <Empty title="No port map in this repo" body={data.note || 'The gallery reads each board\'s status from scripts/design/port-map.mjs.'} />;
   else if (!h) main = <Empty title="No design handoff yet" body="Hand off a Claude Design artifact on the left. Its boards land in design/handoff/ and show here with their port status." />;
   else {

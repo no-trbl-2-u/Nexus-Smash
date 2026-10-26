@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { uiKit } from './shared/kit.mjs';
 
 // nexus.css stays verbatim from the Claude Design handoff. Two of its element
 // resets (.nx button/input/textarea/select { font: inherit; color: inherit }
@@ -69,6 +70,8 @@ export default defineConfig({
   // still finds /assets/*; the server answers every extensionless path with index.html.
   base: '/',
   plugins: [cascadeRepair, fontTrim, react()],
+  // The fork's identity (kit.json, spec 60), fixed into the bundle: src/data/kit.js reads it.
+  define: { __NEXUS_KIT__: JSON.stringify(uiKit()) },
   build: {
     outDir: '../dist',
     emptyOutDir: true,

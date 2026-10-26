@@ -6,8 +6,9 @@
 // upgrade writes (the nexus repo's scripts/upgrade-files.mjs, the one list playbooks/upgrade.md's manual appendix is
 // generated from) into kit/upgrade/ at its templates/ paths, with kit/upgrade/files.json naming each file, where it
 // lands in a repo, and its kind, plus the seeds `upgrade` merges or flips (the v2 roadmap, the lock) and
-// kit/upgrade/kit-text.json (every header and paragraph the kit's march and iterate skills ever held). Runs before
-// every build; the copy is not committed.
+// kit/upgrade/kit-text.json (every header and paragraph the kit's march and iterate skills ever held); and the root's
+// kit.json, the fork's identity (shared/kit.mjs reads it), to kit/kit.json. Runs before every build; the copy is not
+// committed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +26,11 @@ if (!fs.existsSync(src)) {
   console.log('bundle-kit: no ../../templates (outside the nexus repo); keeping what is there');
   process.exit(0);
 }
+
+// The fork's identity first: shared/kit.mjs reads kit/kit.json in a published package, where the root is not there.
+fs.mkdirSync(path.join(pkg, 'kit'), { recursive: true });
+fs.copyFileSync(path.resolve(pkg, '..', '..', 'kit.json'), path.join(pkg, 'kit', 'kit.json'));
+console.log('bundle-kit: copied kit.json -> kit/');
 
 const scriptsSrc = path.join(src, 'scripts');
 const planFiles = planKitFiles(scriptsSrc);
@@ -65,7 +71,7 @@ console.log(`bundle-kit: copied ${upgrade.length} upgrade files -> kit/upgrade/ 
 
 // Every file a server route loads from kit/ must be there, or the build fails here rather than for a user.
 const want = [...Object.values(KIT_FILES).map(([b]) => b), ...planFiles.map((f) => `scripts/${f}`), ...vault.map((f) => `secrets/${f}`),
-  ...upgrade.map((f) => `upgrade/${bundledPath(f.kit)}`), ...SEEDS.map((s) => `upgrade/${s}`), 'upgrade/files.json', `upgrade/${KIT_TEXT}`];
+  ...upgrade.map((f) => `upgrade/${bundledPath(f.kit)}`), ...SEEDS.map((s) => `upgrade/${s}`), 'upgrade/files.json', `upgrade/${KIT_TEXT}`, 'kit.json'];
 const lost = want.filter((f) => !fs.existsSync(path.join(pkg, 'kit', ...f.split('/'))));
 if (lost.length) {
   console.error(`bundle-kit: missing from kit/ after bundling: ${lost.join(', ')}`);

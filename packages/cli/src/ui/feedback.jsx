@@ -3,6 +3,7 @@
 import { Icon } from './icons.jsx';
 import { cx, NavA } from './controls.jsx';
 import { STEPS } from './steps.js';
+import { KIT, kitDoc } from '../data/kit.js';
 import '../styles/toast-host.css';
 
 /**
@@ -43,8 +44,10 @@ export function Ring({ value, size, color, num, indeterminate, label }) {
   );
 }
 
-const KIT_BLOB = 'https://github.com/daretodave/nexus/blob/main/';
-const DOC_RE = /https:\/\/github\.com\/daretodave\/nexus\/blob\/main\/([\w./-]+\.md)|\b(?:nexus\/)?((?:playbooks|concepts|customization|prompts|templates)\/[\w./-]+\.md)/g;
+// The kit's own doc URLs (kit.json's docs, the base the server builds them from) and bare kit paths.
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const BARE = String.raw`\b(?:nexus\/)?((?:playbooks|concepts|customization|prompts|templates)\/[\w./-]+\.md)`;
+const DOC_RE = new RegExp(`${KIT.docs ? esc(KIT.docs) : '(?!)'}${String.raw`\/([\w./-]+\.md)`}|${BARE}`, 'g');
 
 /**
  * A toast's text split so every kit doc it names is a link: a bare kit path (customization/secrets.md, or
@@ -58,7 +61,7 @@ export function docParts(text) {
   for (const m of text.matchAll(DOC_RE)) {
     if (m.index > at) out.push(text.slice(at, m.index));
     const p = m[1] || m[2];
-    out.push({ path: p, href: KIT_BLOB + p });
+    out.push({ path: p, href: kitDoc(p) });
     at = m.index + m[0].length;
   }
   if (at < text.length) out.push(text.slice(at));

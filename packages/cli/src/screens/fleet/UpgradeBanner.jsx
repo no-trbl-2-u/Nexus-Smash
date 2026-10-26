@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Icon, cx } from '../../ui/index.js';
 import { server } from '../../data/index.js';
+import { KIT } from '../../data/kit.js';
 import { fxActive, useFxLevel, useReducedMotion } from '../../fx/pref.js';
 import { bannerFor, ranAgo, reportView } from './upgrade.js';
 import '../../styles/upgrade-banner.css';
@@ -51,7 +52,7 @@ export function UpgradeReport({ last, now = Date.now() }) {
       {v.worktree ? <div className="upg-line"><span className="k">worktree kept</span><code className="v">{v.worktree}</code></div> : null}
       {v.text ? (
         <details className="upg-full" open={v.tone !== 'ok' && v.tone !== 'v2'}>
-          <summary>The full report, as <code>npx @usenexus/cli upgrade</code> prints it</summary>
+          <summary>The full report, as <code>{KIT.launch} upgrade</code> prints it</summary>
           <pre className="upg-term">{v.text}</pre>
         </details>
       ) : null}
@@ -73,7 +74,7 @@ export default function UpgradeBanner({ info }) {
     setError('');
     server.upgradeDry()
       .then((r) => setLast(r))
-      .catch((e) => setError(e.status === 404 ? 'This nexus does not run the upgrade dry run yet. Run npx @usenexus/cli upgrade in a terminal.' : e.message))
+      .catch((e) => setError(e.status === 404 ? `This nexus does not run the upgrade dry run yet. Run ${KIT.launch} upgrade in a terminal.` : e.message))
       .finally(() => setRunning(false));
   };
 

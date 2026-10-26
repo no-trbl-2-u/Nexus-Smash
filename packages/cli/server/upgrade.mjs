@@ -1,4 +1,4 @@
-// `npx @usenexus/cli upgrade`: a v1 repo (a phase plan) to nexus v2 (specs + chunks), dry run first (spec 58).
+// `nexus upgrade`: a v1 repo (a phase plan) to nexus v2 (specs + chunks), dry run first (spec 58).
 //
 // The flow never reads or writes the local checkout: it fetches the origin's default branch and works in a
 // temporary worktree cut from it (a local tree can be months stale and dirty). There it detects the shape, reads the
@@ -11,7 +11,7 @@
 // (playbooks/upgrade.md Step 5), rewrites v1 references outside history files, flips the lock, runs
 // plan-check, its test and workflow-lint, plays march's pick order forward for the first dispatch, and reports. A dry run removes the worktree; a red gate keeps it and prints its path.
 //
-//   npx @usenexus/cli upgrade [--repo <dir>] [--json] [--keep-workflow]
+//   nexus upgrade [--repo <dir>] [--json] [--keep-workflow]
 //
 // Exit 0: the report printed (a v2 repo: "already on v2"). Exit 1: the gate failed (worktree kept). Exit 2: not a
 // v1 or half-done repo, no origin, or a flag this release does not carry yet.
@@ -21,6 +21,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TRAIN, customUnits, fromJson, laneBlocks, mergeText, textOf, textOfPrompt, toJson } from './kit-text.mjs';
+import { kitDoc, launchLine } from '../shared/kit.mjs';
 import { MARCH_YML, SETUP_ACTION, fill, keptLine, mergeWorkflow, packageManager, setupAction } from './workflow-merge.mjs';
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -742,26 +743,28 @@ export function render(report, { color = false } = {}) {
 
 export const UPGRADE_HELP = `nexus upgrade: move a nexus v1 repo (a phase plan) to v2 (specs + chunks).
 
-  npx @usenexus/cli upgrade                 dry run on the repo in this folder:
-                                            a fresh fetch of origin in a
-                                            temporary worktree, the local
-                                            checkout untouched; prints the
-                                            per-file report, the archive lines,
-                                            warnings, the gate, the knobs
-                                            (each at the value that keeps the
-                                            v1 loop's behaviour), the predicted
-                                            first dispatch and the loop mode
-  npx @usenexus/cli upgrade --repo <dir>    ...for another folder
-  npx @usenexus/cli upgrade --json          the report as JSON
-  npx @usenexus/cli upgrade --keep-workflow leave .github/workflows/march.yml as
-                                            it is; report what the merge into
-                                            the v2 owner job would keep
+  nexus upgrade                 dry run on the repo in this folder:
+                                a fresh fetch of origin in a
+                                temporary worktree, the local
+                                checkout untouched; prints the
+                                per-file report, the archive lines,
+                                warnings, the gate, the knobs
+                                (each at the value that keeps the
+                                v1 loop's behaviour), the predicted
+                                first dispatch and the loop mode
+  nexus upgrade --repo <dir>    ...for another folder
+  nexus upgrade --json          the report as JSON
+  nexus upgrade --keep-workflow leave .github/workflows/march.yml as
+                                it is; report what the merge into
+                                the v2 owner job would keep
 
   Exit 0: the report printed (a v2 repo: already on v2). Exit 1: the
   gate failed (the worktree is kept and its path printed). Exit 2: not a
   v1 repo, no origin, or a flag this release does not carry yet.
 
-  The runbook: https://github.com/daretodave/nexus/blob/main/playbooks/upgrade.md`;
+  Here nexus means ${launchLine()}.
+
+  The runbook: ${kitDoc('playbooks/upgrade.md')}`;
 
 /** Flags spec 58 names that a later release carries: refused here rather than ignored. */
 export const LATER = Object.freeze(['--write', '--land', '--rollback', '--pr', '--no-pause', '--no-watch']);

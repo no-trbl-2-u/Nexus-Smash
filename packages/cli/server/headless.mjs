@@ -29,8 +29,8 @@ import { maskFor } from './secrets.mjs';
 
 export const RUN_HELP = `nexus run: answer one prompt headless (one turn, JSON out, no browser).
 
-  npx @usenexus/cli run "<prompt>"
-  echo "<prompt>" | npx @usenexus/cli run -      read the prompt from stdin
+  nexus run "<prompt>"
+  echo "<prompt>" | nexus run -      read the prompt from stdin
 
   --cwd <dir>               the repo to run in (default: this folder)
   --permission-mode <mode>  default (the default), acceptEdits, auto or plan;

@@ -17,13 +17,14 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { gitEnv, safeHooks } from './cloud.mjs';
+import { KIT, kitDoc } from '../shared/kit.mjs';
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const BUNDLED = path.join(PKG, 'kit', 'secrets');
 const TEMPLATES = path.resolve(PKG, '..', '..', 'templates', 'scripts');
 export const SUBJECT = 'feat: add the nexus secrets vault';
 export const BRANCH = 'nexus/secrets-vault';
-export const DOCS = 'https://github.com/daretodave/nexus/blob/main/customization/secrets.md';
+export const DOCS = kitDoc('customization/secrets.md');
 const COMMIT_MS = 15 * 60 * 1000; // the repo's pre-commit hook may run its whole gate
 const NET_MS = 3 * 60 * 1000;
 
@@ -138,7 +139,7 @@ export async function setupVault({ repo, owner, source = vaultSource(), gh = ghP
     }
     const staged = await gitIn(wt, ['add', '--', ...paths]);
     if (!staged.ok) return { status: 500, error: `git add failed:\n${tail(staged)}` };
-    const body = `The secrets scripts (${copied.length} files) from @usenexus/cli, so the vault, \`node scripts/secrets.mjs\` and the GUI's Vault work here.${ignores.length ? ` .gitignore now ignores ${ignores.join(', ')}.` : ''} Names only; no value is in this commit.`;
+    const body = `The secrets scripts (${copied.length} files) from ${KIT.package || 'the nexus CLI'}, so the vault, \`node scripts/secrets.mjs\` and the GUI's Vault work here.${ignores.length ? ` .gitignore now ignores ${ignores.join(', ')}.` : ''} Names only; no value is in this commit.`;
     const commit = await gitIn(wt, [...hp, 'commit', '-q', '-m', SUBJECT, '-m', body], { timeout: COMMIT_MS });
     if (!commit.ok) return { status: 409, error: `the commit did not go through (the repo's commit hook may have refused it):\n${tail(commit)}` };
     if (owner) {

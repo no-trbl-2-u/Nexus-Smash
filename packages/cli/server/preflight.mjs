@@ -1,6 +1,7 @@
 // Onboarding preflight: is this machine ready to drive Claude Code here?
 import { run, json } from './sh.mjs';
 import { repoInfo } from './repo.mjs';
+import { launchLine } from '../shared/kit.mjs';
 
 export async function preflight(repo) {
   const [ver, auth, gh, info] = await Promise.all([
@@ -62,7 +63,7 @@ function remoteDetail(info) {
 }
 
 function remoteFix(info) {
-  if (info.place === 'nested') return `Start nexus at that repo's root: npx @usenexus/cli --repo "${info.top}".`;
+  if (info.place === 'nested') return `Start nexus at that repo's root: ${launchLine()} --repo "${info.top}".`;
   if (info.place === 'refused') return 'Make a folder for the project and start nexus there.';
   if (info.remote) return null;
   return info.isGit ? 'Put it on GitHub from Detect, or add one: `git remote add origin <url>`.' : 'Make it a repo from Detect: one click per step, nothing leaves this machine until you say so.';
