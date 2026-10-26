@@ -1,7 +1,6 @@
 {
   "about": "Files that still name the upstream kit, with their match counts (spec 60). Computed by node scripts/kit-id.mjs refs --write; the kit leg lets a count fall, never rise.",
   "files": {
-    "README.md": 4,
     "agents.md": 1
   }
 }
