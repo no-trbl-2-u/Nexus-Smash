@@ -20,6 +20,7 @@ invariant teaches the gate in the same commit; hard-wrap
 **Asap** (built before the table, in this order, once their
 needs are done):
 
+- 67.1
 
 **Held** (waits on the owner's word; never picked until the
 line goes; each line is a lock that times out, so it carries
@@ -41,10 +42,15 @@ line goes; each line is a lock that times out, so it carries
 | 64 | The editable surface and /refine | [64-surface-and-refine.md](64-surface-and-refine.md) | planned · priority 12 | 6 left |
 | 65 | The GUI sees the new parts | [65-gui-sees-the-new-parts.md](65-gui-sees-the-new-parts.md) | planned · priority 13 | 5 left |
 | 66 | Context as files, mission as a pointer | [66-context-trees.md](66-context-trees.md) | planned · priority 14 | 4 left |
+| 67 | Support routing reads the author association | [67-support-routing-reads-association.md](67-support-routing-reads-association.md) | planned | 1 left |
+| 68 | The tree reverse-check derives from the trees | [68-tree-check-derives-from-trees.md](68-tree-check-derives-from-trees.md) | planned | not chunked |
+| 69 | The first-party prompt audit in the maintenance story | [69-prompt-audit-in-maintenance.md](69-prompt-audit-in-maintenance.md) | planned | not chunked |
+| 70 | Unattended runs wait out transient rate limits | [70-retry-watchdog-in-cloud.md](70-retry-watchdog-in-cloud.md) | planned | not chunked |
+| 71 | The heartbeat's cancel step skips a paused workflow | [71-heartbeat-skips-paused.md](71-heartbeat-skips-paused.md) | planned | not chunked |
 
 Spec numbers continue from the v1 phase numbers (phases 1–33
 are archived; 20 and 32 were the two left blocked when the
-plan moved to chunks on 2026-10-20). The next new spec is 67.
+plan moved to chunks on 2026-10-20). The next new spec is 72.
 New specs arrive through `/plot`, `/messy`, or `/oversight`
 promoting a [`CANDIDATES.md`](CANDIDATES.md)
 entry. A row whose Status reads `planned · priority N` is

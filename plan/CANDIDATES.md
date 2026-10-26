@@ -6,69 +6,6 @@
 
 ## Pending
 
-### [ ] [score 6.6] Derive verify.mjs's tree reverse-check from the tree diagrams themselves, not a hand-maintained dir list
-- proposed: 2026-09-23 (iterate, dispatched to expand — no
-  finding scored ≥3.0 this tick)
-- source signals: the exact same bug class — README.md's and/or
-  templates/README.md's "What's in this kit" tree diagram
-  drifting out of sync with what's actually on disk — has been
-  found and fixed at least eight separate times since
-  2026-07-19: `PHASE_CANDIDATES.md`/`CURRENT-STATE.md` under
-  `templates/plan/` (2026-07-19, `plan/AUDIT.md:192-209`), root
-  `CLAUDE.md` (2026-07-29, `plan/AUDIT.md:537-544`),
-  `skills/digest.md` in the collapsed `skills/` enumeration
-  (2026-07-25, `plan/AUDIT.md:398,420`), a second
-  `templates/plan/` pair (2026-08-27ish, `plan/AUDIT.md:599,640`),
-  `templates/workspace/` (2026-09-01→02,
-  `plan/AUDIT.md:760-767,2119`), `templates/scripts/install-hooks.mjs`
-  (this week, `plan/AUDIT.md:1904`), `templates/.github/ISSUE_TEMPLATE/`
-  (this week, `plan/AUDIT.md:1825`), and root `CONTRIBUTING.md`
-  (today, `plan/AUDIT.md:1737`). A ninth, structural instance
-  shipped this week too (commit `e7b4172`): `scripts/verify.mjs`'s
-  own `REVERSE_CHECK_DIRS` array — the gate's reverse-check
-  allowlist — had itself silently missed four directories
-  (`templates/.github`, `templates/data`, `templates/setup`,
-  `templates/env`) that are expanded per-file in
-  `templates/README.md`'s tree, so the gate couldn't catch drift
-  inside them either. Root cause, confirmed by reading
-  `scripts/verify.mjs:176-219`: `REVERSE_CHECK_DIRS` is a second,
-  independently hand-maintained list of directories, separate from
-  the tree diagrams it's meant to police — every time a new
-  top-level dir gets expanded in a tree, a human or tick has to
-  remember to also add it here, which is precisely the same
-  maintenance-drift failure mode as the tree diagrams themselves.
-  Root-level files (like `CONTRIBUTING.md`, `CLAUDE.md`) aren't
-  covered by the reverse-check at all — only files under a listed
-  directory are walked, so a root-level omission is invisible to
-  the gate by construction, not just by a missing list entry.
-- rationale: this is the single most-repeated bug class in the
-  kit's entire audit history (nine confirmed occurrences, roughly
-  one every 1-2 weeks), always low-severity individually (a docs
-  cosmetic gap, never a broken command) but collectively the
-  single biggest recurring tax on `/iterate` ticks — each
-  occurrence costs a full finding-and-fix cycle for something a
-  slightly smarter gate leg would catch for free, permanently.
-  Adopter-facing (both `README.md` and `templates/README.md`,
-  the two docs every adopter reads first) and cheap: the fix is
-  confined to `scripts/verify.mjs`'s existing `legTree()`
-  function, no template API change.
-- proposed scope: replace the hardcoded `REVERSE_CHECK_DIRS`
-  array with a derived list — every top-level directory (and the
-  repo root itself, for direct files only, non-recursive) that
-  actually appears as an entry in either parsed tree diagram
-  becomes reverse-checked automatically, with a small, explicit
-  exclusion list (kit-internal-only dirs like `plan/`, `.git/`,
-  `node_modules/`, that intentionally never appear in an
-  adopter-facing product tree) instead of an opt-in allowlist.
-  Root-level files get the same non-recursive walk-and-compare
-  treatment `legTree()` already does for subdirectories. This
-  closes both the "new subdir needs a list entry" gap and the
-  root-level-file blind spot in one pass.
-- estimated phases: 1 (verify.mjs only, no template API change —
-  agents.md rule 7 doesn't apply since REVERSE_CHECK_DIRS isn't
-  documented public API)
-- conflicts: none.
-
 ### [ ] [score 7.8] Workflow-scope-blocked lane: stop re-discovering the App-token-overrides-PAT gap per phase
 - proposed: 2026-08-31
 - source signals: three independent AUDIT rows share one root
@@ -126,597 +63,6 @@
   closes `[user-issue #35]`, `[user-issue #40]`, and
   `[user-issue #49]` together if the fix lands, or gives all
   three a documented standing resolution path if it doesn't.
-
-### [promoted 2026-08-23 → phase 22] [score 8.8] Workspace-of-repos as a first-class adoption path
-- proposed: 2026-07-03
-- source signals: two sibling adopters independently converged
-  on the same topology — un-versioned workspace root,
-  org-per-project GitHub layout, `plan/` its own repo, sibling
-  product repos — which the kit only half-documents
-  (`playbooks/polyrepo.md` covers the plan split alone).
-- rationale: two real adoptions converging unprompted is the
-  strongest possible signal; every workspace adopter currently
-  re-improvises the root conventions.
-- proposed scope: `playbooks/workspace.md` (un-versioned-root
-  rule, org-per-project, what lives only at root, decision
-  matrix, ready-when checklist); `templates/workspace/` root
-  family (workspace CLAUDE.md + AGENTS.md mirror, scratch
-  README, repo-claude propagation template); a
-  topology-detection step in the adopt prompt with a
-  confirm-with-user stop; edits to `playbooks/polyrepo.md` +
-  `concepts/architecture.md` so single-repo -> polyrepo ->
-  workspace reads as one ladder.
-- estimated phases: 1-2
-- conflicts: extends polyrepo.md, never replaces it.
-
-### [promoted 2026-08-23 → phase 21] [score 8.6] prompts/ as canonical files + a five-line paste
-- proposed: 2026-07-03
-- source signals: the two ~60-line README paste-prompts are the
-  funnel's biggest wall; prompt fixes today mean "re-paste the
-  new blob".
-- rationale: `prompts/adopt.md` + `prompts/pitch.md` as
-  versioned, gate-linted files turn the paste into five lines
-  that self-clone (or one raw.githubusercontent fetch line),
-  client-agnostic by construction; every other doorway (npx,
-  plugin) later references the same canonical text.
-- proposed scope: `prompts/adopt.md`, `prompts/pitch.md`,
-  `prompts/README.md`; README TL;DR sections shrink ~120
-  lines; a verify leg keeping any README excerpt byte-synced
-  with prompts/; `skills/critique.md` dry-runs the new short
-  paste; agents.md notes prompts/ paths are public API.
-- estimated phases: 1
-- conflicts: pairs with the README conversion pass below —
-  promote together or sequence prompts/ first.
-
-### [x] [score 8.5] Two-ring secrets topology (.env vs .env.workspace) (absorbed into spec 42, 2026-10-21)
-- proposed: 2026-07-03
-- source signals: both mature adoptions run the same secrets
-  layering the kit says nothing about — per-repo `.env` for the
-  loop's own gate tokens, workspace-root `.env.workspace` for
-  cross-repo operational secrets, `.secrets/` for key FILES.
-- rationale: the safety property is structural, not procedural —
-  the workspace root is outside every repo, so `git add -A`
-  physically cannot leak Ring 2. Answers the scariest adopter
-  question ("where do secrets go?") with architecture.
-- proposed scope: `customization/workspace-secrets.md` (two
-  rings + key-file pointer rule + placement tiebreaker: consumed
-  by, or granting power over, more than one repo -> Ring 2);
-  `templates/env/env.workspace.example` (names never values;
-  per-key grammar: minted-by runbook, mirrored-to, expires);
-  header pointer in `templates/env/env.example`; see-also links
-  in polyrepo.md + external-services.md.
-- estimated phases: 1
-- conflicts: none — opens with "skip unless polyrepo/workspace".
-
-### [ ] [score 8.3] README above-the-fold conversion pass
-- proposed: 2026-07-03
-- source signals: conversion happens in the first screenful;
-  today the pitch is stated twice, the paste is 60 lines, and
-  the workspace shape has no front door. Full restructure
-  outline captured 2026-07-03 (ideation session).
-- rationale: hook -> proof -> qualify -> convert -> deepen ->
-  trust -> rules; target ~350 lines from ~690. The march.yml
-  badge whose green is produced by the loop it sells is proof
-  no competitor can hand-copy.
-- proposed scope: README-only editing session: kill the
-  blockquote echo, merge the three qualification sections into
-  one gate above the doors, collapse the two TL;DRs + mermaid
-  into a three-door section, replace eight playbook blurbs with
-  a router table (you have -> do this -> time), ouroboros proof
-  strip up top, date-stamped adoption-receipt diffstat in a
-  details block. Repoint the verify tree leg in the same commit.
-- estimated phases: 1
-- conflicts: depends on prompts/ landing first (the doors paste
-  five lines, not sixty).
-
-### [ ] [score 8.2] Versioned releases + plan/nexus.lock + upgrade story
-- proposed: 2026-07-03
-- source signals: adopters copy from a moving main and can never
-  diff what changed; every packaging doorway needs something
-  stable to pin against.
-- rationale: "copy once, drift forever" becomes "pin, then
-  upgrade deliberately" — dependency semantics with nothing but
-  git tags and one JSON lock (kitVersion, kitCommit, per-file
-  hashAtCopy). Three-way merge separates "stale, cleanly
-  bumped" from "customized, needs eyes".
-- proposed scope: KIT_VERSION + CHANGELOG.md keyed by template
-  path; `scripts/kit-manifest.mjs` (hermetic sha256 walk);
-  lock-writing step in prompts/adopt.md; `playbooks/upgrade.md`
-  (git merge-file three-way; [needs-user-call] AUDIT rows for
-  conflicted files; pre-lock fallback via re-hash against
-  historical tags); verify legs for version/CHANGELOG sync.
-- estimated phases: 2
-- conflicts: prompts/ should land first (the lock step lives
-  there); permanent CHANGELOG discipline cost — worth it.
-
-### [ ] [score 7.9] Handshake runbook profile for setup/
-- proposed: 2026-07-03
-- source signals: a sibling adopter's runbooks follow a proven handshake
-  the kit's setup/ paradigm doesn't capture: "human dashboard
-  steps (~N min) -> drop these exact keys into the env file ->
-  say 'X is in' -> what the agent wires after the drop".
-- rationale: turns every external service into a
-  fill-in-the-blanks credential handoff; keys arrive in files,
-  not chat. The "THE STEP THAT CAN BREAK <X>" destructive-step
-  callout convention rides along.
-- proposed scope: `templates/setup/NN_service.handshake.md`
-  (four fixed sections; fenced env-block naming exact keys +
-  exact target file + resume signal); "two runbook profiles"
-  chooser in external-services.md (agent can do >80% via CLI
-  once it has a token -> handshake); profile column in
-  00_files.md legend.
-- estimated phases: 1
-- conflicts: none — second layer of the two-ring secrets story.
-
-### [promoted 2026-08-23 → phase 19] [score 9.0] Rewrite playbooks/new-project.md's step-4 copy-and-placeholder walkthrough as one verified sequence
-- proposed: 2026-07-06; re-evidenced 2026-07-10, 2026-07-13,
-  2026-07-21, 2026-07-23 (x2), 2026-07-24, 2026-07-26
-- source signals: this is the second critique cycle in a row to
-  land findings in the same step-4/7 block of
-  playbooks/new-project.md. The four findings that originally
-  motivated this candidate (sibling-clone copy paths,
-  `PHASE_CANDIDATES.md` never copied, CLAUDE.md never landed at
-  root, and their combined ordering) are now all fixed
-  individually (see `plan/CRITIQUE.md` Done log) — and critique
-  pass 3 (2026-07-10) immediately found six more in the identical
-  region: `templates/plan/phases/` also never lands in step 4's
-  copy array despite step 5 depending on it (HIGH — literal
-  placeholder tokens ship in phase 1's brief); the placeholder
-  grep scope still misses `./scripts` and `./.env.example` (MED,
-  confirmed unresolved `<PROJECT_LOWER>`/`<REPO_SLUG>` tokens);
-  the blanket `skills/` copy still contradicts the adopt-by-need
-  contract (MED); step 7 redundantly re-copies
-  `deploy-check.mjs` already placed by step 4's bulk copy (LOW);
-  step 6 edits a `package.json` that doesn't exist at that point
-  in the walk (LOW); the pnpm sed caveat has no worked example
-  (MED, see the sibling candidate below). Critique pass 4
-  (2026-07-13) sharpened the adopt-by-need prune finding still
-  further: the "Prune adopt-by-need files" fix only gives worked
-  removal steps for 4 of `templates/README.md`'s ~12 adopt-by-need
-  rows, leaving `skills/digest.md`, `skills/bootstrap.md`,
-  `scripts/refresh-critique-session.mjs`,
-  `scripts/check-secrets-liveness.mjs`, and
-  `scripts/stack-lifecycle.mjs` unconditionally landed with no
-  prompt to remove them for adopters who don't need them —
-  confirmed in a scratch repro. Third cycle in a row landing in
-  this same block. A fresh A-G AUDIT sweep (2026-07-21, not a
-  critique pass) found a fourth instance of the identical
-  grep-scope bug: the same one-liners also omit `./data`, so
-  `templates/data/README.md`'s `<PROJECT>`/`<PROJECT_PKG_PREFIX>`
-  tokens survive the sweep unresolved for GitHub-as-DB adopters —
-  fixed same-commit (`ced0304`), the third distinct scope gap
-  found this way after `./scripts` and `./.env.example`. The bug
-  class now reproduces from both signal A (audit) and signal B
-  (critique), always in the same one-liners. Since pass 4
-  (2026-07-22), four more instances landed in the identical
-  block, two per sub-mechanism the proposed scope already names:
-  the placeholder one-liner broke again twice more — bare
-  `sed -i` misparsed by stock macOS/BSD sed (2026-07-23, commit
-  `70c8b6c`) and an unguarded `./data` grep erroring loudly when
-  the directory is absent (2026-07-23, commit `fe46a28`) — and
-  the "Prune adopt-by-need files" sub-step missed two more of the
-  ~12 adopt-by-need rows exactly as this candidate's proposed
-  scope predicted: the `.claude/` Claude-Code-only bundle
-  (2026-07-24, commit `9d404ce`) and `scripts/bootstrap.mjs`, the
-  1009-line executor behind `/bootstrap` (2026-07-26, commit
-  `0f19039`). Both prune misses are the identical failure this
-  candidate already called out by name ("only gives worked
-  removal steps for 4 of ~12 adopt-by-need rows") — the fix
-  pattern is not finding new bug classes, it is re-confirming the
-  one this candidate proposes to close structurally.
-- rationale: tick-by-tick `/iterate` fixes keep patching this
-  block and it keeps re-breaking on the next fresh-eyes pass —
-  the strongest possible evidence that the block's *structure*
-  (copy array + placeholder sweep + prune, spread loosely across
-  steps 4-7) is the defect, not any single line in it. Signal B's
-  cluster pattern, now sextupled across six re-evidencing dates,
-  and no longer critique-only. Six ticks have each shipped a
-  correct, narrow fix for one row/directory/mechanism at a time
-  — none has shipped the structural rewrite that would stop the
-  next instance before it's found by hand.
-- proposed scope: rewrite playbooks/new-project.md's step 4 (copy)
-  and its placeholder-replace step so paths match the README's
-  recommended sibling-clone layout; add the missing
-  `templates/plan/phases/` copy line (and re-sweep placeholders
-  over it); widen the grep scope to every directory step 4
-  populates (`./scripts`, `./.env.example`, `./data`) once,
-  structurally, instead of patching one omitted directory per
-  sweep; add an explicit
-  adopt-by-need prune sub-step right after the bulk copy that
-  covers all ~12 of `templates/README.md`'s adopt-by-need rows,
-  not just the 6 already worked one at a time (Surface/
-  Structured-data/UGC-gated/`.claude/`/`scripts/bootstrap.mjs`);
-  fold step 7's now-redundant deploy-check.mjs copy
-  into step 4's bulk copy and reword step 7 to "wire the file
-  already present"; clarify step 6 describes the target shape for
-  phase 1's brief to produce, not something to run against an
-  empty repo. Carries all current CRITIQUE rows in this cluster to
-  Done in the same commit (leaves the pnpm/settings.json row to
-  the sibling candidate below, and the two single-instance LOW
-  rows — step 2's bearings.md placeholder mismatch,
-  `<PROJECT_PKG_PREFIX>`'s worked example — as plain `/iterate`
-  ticks; they don't share this cluster's root cause).
-- estimated phases: 1
-- conflicts: none — tightens an existing playbook, no template
-  API change.
-
-### [ ] [score 7.6] Key custody map + hermetic keys lint
-- proposed: 2026-07-03
-- source signals: unattended windows die on "which file holds
-  this token, where is it mirrored, when does it expire" —
-  questions no kit file answers today.
-- rationale: one greppable names-only registry row per
-  credential (Key | Holder file | Minted by | Scopes | Mirrored
-  to | Expires | Rotate via), updated in the same commit as the
-  mint; a pure-string lint makes orphan/ghost/ambiguous keys a
-  gate failure while staying offline.
-- proposed scope: `templates/setup/00_keys.md`;
-  `templates/scripts/keys-audit.mjs` (opt-in leg); hands-off.md
-  pre-flight refuses a window that outlives any Expires cell;
-  /bootstrap rotate consumes Mirrored-to as its propagation
-  list.
-- estimated phases: 1
-- conflicts: builds on the two-ring topology + handshake rows.
-
-### [ ] [score 7.5] Package nexus as a Claude Code plugin
-- proposed: 2026-07-02 (design deepened 2026-07-03); re-evidenced
-  2026-09-14 (expand pass 12)
-- source signals: adoption friction (clone + copy + replace is
-  the whole TL;DR); Claude Code plugin/marketplace support.
-  Signal E (platform drift), 2026-09-14: Claude Code v2.1.269
-  (2026-09-11, confirmed via a fresh changelog fetch this pass)
-  shipped `claude plugin eval` — a first-party command that runs
-  a plugin's eval suite and returns scored, reproducible results.
-  This is the exact validation this candidate's proposed scope
-  was missing: the byte-diff verify leg only proves the plugin
-  build is reproducible, not that its three shipped commands
-  (adopt/upgrade/doctor) behave correctly.
-- rationale: `/plugin install nexus` collapses adoption Step 1;
-  the client-agnostic skills/ layout stays canonical. Deepened:
-  the plugin ships adopt/upgrade/doctor commands ONLY — never
-  the skill family, protecting the adopted-skills doctrine; the
-  nexus repo is its own marketplace so push = publish survives.
-- proposed scope: `.claude-plugin/marketplace.json` at root;
-  plugin/ generated by `scripts/build-plugin.mjs` (version ==
-  KIT_VERSION, commands wrap the canonical prompts/, vendored
-  templates snapshot for offline determinism); one verify leg
-  regenerating in-memory and byte-diffing; a `claude plugin eval`
-  suite exercising the three shipped commands; `playbooks/plugin.md`.
-- estimated phases: 1
-- conflicts: ship after prompts/ + releases/lock — the plugin
-  commands consume both.
-
-### [ ] [score 7.4] plan/ carries the workspace: resurrection files + doctor
-- proposed: 2026-07-03
-- source signals: the un-versioned root's obvious objection —
-  lose the machine, lose the topology. a sibling adopter's plan repo
-  already half-plays this role.
-- rationale: make plan/ the versioned carrier: canonical copies
-  of the root files, a names-only keys manifest, a clone map,
-  and a zero-dependency offline doctor. New-machine flow: clone
-  org/plan, copy root files up, clone per repos.md, re-run each
-  runbook's human beat, doctor until green.
-- proposed scope: `templates/workspace/plan-workspace/`
-  (keys.md names-only manifest, repos.md clone map, root/
-  canonical copies); `templates/workspace/workspace-doctor.mjs`
-  (root-not-a-repo, repos exist, keys present by name, no
-  secret path inside any repo tree); Resurrection section in
-  playbooks/workspace.md; pointer in recovery.md.
-- estimated phases: 1
-- conflicts: rides the workspace playbook candidate.
-
-### [ ] [score 7.3] Workspace-aware /bootstrap + /oversight
-- proposed: 2026-07-03
-- source signals: a sibling adopter's cloudflare runbook fans one
-  workspace token out to repo Actions secrets by hand.
-- rationale: teach the executor the two rings — env resolution
-  walks up (process env -> repo .env -> parent .env.workspace,
-  with stop conditions), secret fan-out walks down (gh secret
-  set per Mirrored-to target); a missing key's failure message
-  points at the runbook that mints it.
-- proposed scope: edits only — bootstrap-automation.md (env
-  resolution order + fan-out), external-services.md (/oversight
-  checks each key in its Holder file, names only), polyrepo.md
-  (custody map rides the plan repo).
-- estimated phases: 1
-- conflicts: depends on two-ring topology + custody map.
-
-### [ ] [score 7.2] Package-manager pluggability: the pnpm-only settings.json allowlist silently stalls npm/yarn/bun adopters
-- proposed: 2026-07-10
-- source signals: critique pass 3 (2026-07-10) —
-  `playbooks/new-project.md:35`'s "sed-replace if you use
-  npm/yarn/bun" caveat has no worked example and a naive
-  `s/pnpm/npm/g` breaks command syntax (`npm typecheck` needs
-  `run`); separately, and more seriously,
-  `templates/claude/settings.json`'s permission allowlist is
-  hardcoded to `Bash(pnpm verify:*)` / `Bash(pnpm test:*)` etc.
-  with no equivalent for other package managers.
-- rationale: an npm/yarn/bun adopter's verify-gate commands never
-  match the allowlist, so every unattended cloud tick silently
-  stalls on a permission prompt nobody is present to answer —
-  this directly defeats `README.md`'s "leave it for 80 hours"
-  pitch, the kit's core promise, for any adopter who isn't on
-  pnpm. Adopter-facing and severe out of proportion to how small
-  the fix is.
-- proposed scope: either (a) generate
-  `templates/claude/settings.json`'s allowlist entries from the
-  package-manager choice already captured during onboarding
-  (bootstrap.mjs already prompts/knows this), so npm/yarn/bun
-  land with matching `Bash(<pm> ...)` entries in the same commit
-  the placeholders resolve; or (b), if (a) is out of scope for one
-  phase, state plainly in `new-project.md` and `README.md` that
-  pnpm is a hard prerequisite until (a) ships, and give a real
-  worked sed example for the interim manual path. Either way,
-  fixes the allowlist/caveat mismatch `plan/CRITIQUE.md` flagged.
-- estimated phases: 1
-- conflicts: none — settings.json's allowlist shape is internal
-  to the template, not public API (agents.md rule 7 covers
-  paths + placeholder vocabulary, not allowlist contents).
-
-### [ ] [score 7.1] npx nexus-adopt: the mechanical half as an initializer
-- proposed: 2026-07-03
-- source signals: clone + copy + placeholder-replace is
-  mechanical work no agent needs judgment for.
-- rationale: a zero-dependency initializer does the mechanical
-  half (infer placeholders from git remote/branch/dirname,
-  shallow-clone at the latest tag, copy per the templates
-  contract, write plan/nexus.lock) then prints exactly one
-  paste line handing the judgment half to ANY agent.
-- proposed scope: packaging/npx/ (bin + small test); release.yml
-  publishing on tag push (one NPM_TOKEN secret); README
-  one-command variant above the paste.
-- estimated phases: 1
-- conflicts: ship after prompts/ + releases; npm is a second
-  publish surface to keep in lockstep.
-
-### [ ] [score 7.0] ADOPTERS.md wall + badge + opt-in hatch beacon
-- proposed: 2026-07-03
-- source signals: the only zero-cost growth loop available under
-  the $0-marginal constraint.
-- rationale: registry rows are trivially mergeable community
-  PRs; the differentiated part is the beacon — an adopter's
-  first green tick (opt-in, off by default, loudly so) files a
-  "hatched" issue with verifiable first-tick evidence, and
-  /triage is the spam gate.
-- proposed scope: ADOPTERS.md seeded with the provenance
-  projects + paste-ready badge snippet; README "projects that
-  ship themselves" strip; NEXUS_HATCH_OPTIN= (empty default) in
-  env.example; one fires-once step in ship-a-phase.md; a
-  hatched route in triage.md.
-- estimated phases: 1
-- conflicts: beacon must stay opt-in or it reads as phone-home
-  telemetry in a kit whose brand is "you own everything".
-
-### [ ] [score 5.5] playbooks/outgrow.md — the split ceremony
-- proposed: 2026-07-03
-- source signals: judged premature — no second real migration to
-  validate the ceremony against yet.
-- rationale: the single-repo -> workspace split will eventually
-  need a numbered, safe ceremony; write it when the first real
-  split happens and can serve as its test case.
-- proposed scope: deferred; the workspace playbook's decision
-  matrix + polyrepo.md cover the ladder's endpoints until then.
-- estimated phases: 1
-- conflicts: none.
-
-### [ ] [score 6.8] closeloop: thank the humans who file issues
-- proposed: 2026-07-02
-- source signals: a sibling adopter's `.claude/tools/closeloop.mjs`
-  (Postmark batch thank-you emails to issue reporters,
-  dry-run default, tested).
-- rationale: the address loop closes with the fix; closing
-  with the *reporter* compounds trust. Generalize as an
-  opt-in template next to loop-issue.mjs.
-- proposed scope: `templates/scripts/closeloop.mjs` +
-  customization section in the triage/moderation story.
-- estimated phases: 1
-- conflicts: email provider becomes an optional external
-  service (runbook required).
-
-### [ ] [score 6.1] Critique-household pattern for auth-aware critique
-- proposed: 2026-07-02
-- source signals: a sibling adopter's planned `/visit` seals an
-  anonymous "critique household" so the observer never
-  consents to analytics (no GA4 pollution) — a pattern
-  auth-aware-critique.md doesn't cover.
-- rationale: adds the "observer must not pollute product
-  analytics/data" dimension to the five auth patterns.
-- proposed scope: new section in
-  `customization/auth-aware-critique.md` + env conventions.
-- estimated phases: 1
-- conflicts: none.
-
-### [ ] [score 5.9] Staged hardening for verify legs
-- proposed: 2026-07-02
-- source signals: a sibling adopter's `check.mjs` `*_IS_ERROR` flags —
-  new invariants start as warnings, flip to errors once the
-  corpus drains.
-- rationale: lets adopters (and this repo) add aggressive lint
-  legs without a big-bang cleanup; the flip commit is the
-  celebration.
-- proposed scope: warn-tier support in `scripts/verify.mjs` +
-  a paragraph in verify-gate.md.
-- estimated phases: 1
-- conflicts: none.
-
-### [promoted 2026-08-23 → phase 20] [score 8.5] Cloud march ticks must not dispatch background/async agents
-- proposed: 2026-07-17 (digest); re-evidenced 2026-08-02
-  (expand pass 6)
-- source signals: the 2026-07-17 03:04 UTC cloud tick (run
-  `29551508864`) reached `/iterate`'s audit-refresh step, found
-  `plan/AUDIT.md` >24h stale, and launched an async background
-  subagent to run the A-G sweep instead of running it inline.
-  The log shows it explicitly deciding to "wait for the audit
-  agent to finish," then the GitHub Actions job's own
-  `terminal_reason` flips to `completed` ~4 seconds later — no
-  commit, no verify run, no trace of the subagent's output ever
-  landing. The very next tick (07-17 08:45, run `29567537795`)
-  hit the identical stale-audit branch but ran the sweep inline
-  and shipped cleanly in ~6 minutes (commit `4ca0c36`), proving
-  the sweep itself isn't the bottleneck — the async dispatch
-  pattern is. 1 of 4 ticks in that 26h window was silently lost
-  this way (full pulse in `plan/DIGEST.md` 2026-07-17). Signal E
-  (platform drift), 2026-08-02: Claude Code's own Agent tool
-  description, current as of this pass (confirmed both via the
-  in-session tool schema and `code.claude.com/docs/en/whats-new`
-  Week 27, June 29 - July 3 2026: "subagents run in the
-  background by default so Claude keeps working while they
-  run"), now states "Agents run in the background by default...
-  Pass run_in_background: false to run an agent in the
-  foreground." That changed the failure mode this candidate was
-  written against: the original evidence was one tick explicitly
-  requesting background mode, but the platform default has since
-  flipped, so *any* `Agent(...)` call in a cloud tick that omits
-  `run_in_background` now backgrounds itself — not just calls
-  that opt in.
-- rationale: a GitHub Actions job is a single-shot process —
-  once the step (and the job) exits there is nothing left
-  running to deliver a background agent's completion
-  notification, so dispatching `Agent(..., run_in_background:
-  true)`-style work inside a cloud march tick is a guaranteed
-  no-op, not a performance win. `templates/.github/workflows/march.yml`
-  runs the identical one-shot pattern, so every adopter's cloud
-  loop carries the same latent trap. With backgrounding now the
-  platform default rather than an opt-in, the omission case (no
-  `run_in_background` param at all) is at least as likely to
-  bite an unattended cloud tick as the explicit-`true` case this
-  candidate was originally scored against — raising both
-  likelihood and adopter-facing severity.
-- proposed scope: add an explicit "cloud ticks run
-  synchronously — every Agent call must pass
-  `run_in_background: false` explicitly; the platform default is
-  background as of mid-2026, so omitting the param is itself a
-  background dispatch" line to the cloud-mode prompt block in
-  `.github/workflows/march.yml` and its `templates/` mirror,
-  plus a matching failure-mode entry in `.github/CLOUD_LOOP.md`
-  ("a tick logs launching a background/async audit agent then
-  exits clean with no commit" -> this root cause) and a note on
-  `skills/iterate.md`'s audit-delegation step.
-- estimated phases: 1 (doc/prompt-only, no template API change)
-- conflicts: none.
-
-### [ ] [score 6.5] Mechanically verify the Cloud-Run trailer on cloud ticks
-- proposed: 2026-07-20 (digest); re-evidenced 2026-07-26 (digest),
-  2026-09-05 (digest), 2026-09-25 (iterate, dispatched to expand
-  — no finding scored ≥3.0 this tick)
-- source signals: of the 4 cloud commits shipped in the trailing
-  24h window (2026-07-19 14:31 to 2026-07-20 09:07 UTC — all
-  4 `march` runs green, no failures), 1 — `a74f7b6` ("critique:
-  pass 6 — 4 findings (2 high, 2 med)", from the 2026-07-19
-  20:18 UTC tick) — landed with no `Cloud-Run:` trailer at all,
-  breaking agents.md rule 2's carve-out. The workflow's own
-  ceiling check (`march.yml`'s "Daily commit ceiling check"
-  step) counts cloud volume by `git log --grep='Cloud-Run:'`,
-  so this commit silently doesn't count toward the 8/24h
-  ceiling either — the miss is invisible from both the rule
-  side and the counting side. `scripts/verify.mjs` runs
-  foreground on every tick but has no leg that inspects the
-  commit trailer, since it can't distinguish a cloud commit
-  from a local one at gate time. Second instance found
-  2026-07-26 (digest): `427eb91` ("critique: pass 8 — 2 findings
-  (0 high, 1 med, 1 low)", from the 2026-07-25 20:20 UTC tick)
-  repeats the identical gap — confirmed via
-  `gh run view 30173383094 --log`, whose prompt block quotes the
-  exact trailer text verbatim, yet the shipped commit has no
-  body at all. Both observed misses are `/critique` verb commits
-  specifically (`a74f7b6`, `427eb91`), never an `/iterate` or
-  `/expand` commit in the ~60 cloud ticks sampled by digest
-  passes to date — narrows the likely root cause from "any
-  cloud commit can drop the trailer" to "the critique skill's
-  own commit step doesn't append it," which changes where the
-  eventual fix should look first. Third instance, 2026-09-04:
-  `3f29301` ("critique: pass 14 — 3 findings (0 high, 1 med, 2
-  low)") repeats the gap a third time, still on `/critique` —
-  but this time `/triage` traced the actual mechanism (filed as
-  `plan/AUDIT.md` `[user-issue #53]`): the tick delegated
-  `skills/critique.md` step 3's dry-run walk to a general-purpose
-  sub-agent, which went further than asked and ran steps 6-7
-  itself (append findings, commit, push) using its own prompt —
-  one that never carried the parent tick's cloud-mode trailer
-  text. This sharpens "the critique skill's own commit step
-  doesn't append it" into something more specific: the commit
-  step is fine when the parent tick runs it directly; the gap is
-  delegation-shaped, only surfacing when a sub-agent commits on
-  the parent's behalf. Fourth instance, 2026-09-24 (filed as
-  `plan/AUDIT.md` `[user-issue #63]`): commit `0cdb345`
-  ("critique: pass 20 — 2 findings (0 high, 1 med, 1 low)")
-  repeats the identical delegation-shaped gap — the sub-agent
-  appended to `plan/CRITIQUE.md` and committed + pushed directly
-  despite `skills/critique.md` step 3 already scoping it to
-  steps 3-5 only. Reporter spot-checked the commit's content
-  against its cited evidence and confirmed it's legitimate, so
-  this is purely the same process gap recurring a fourth time,
-  not a content defect. `[user-issue #63]`'s own `next` field
-  proposes the same two angles as `[user-issue #53]` before it:
-  a stronger literal imperative in the delegate prompt, and/or
-  this candidate's mechanical workflow-side check.
-- rationale: the trailer is the sole mechanism the ceiling
-  trusts; a tick that forgets it both violates the standing
-  rule silently and erodes the ceiling's accuracy in the
-  direction that's hardest to notice (undercounting, not
-  overcounting). Three misses now observed, all on the same
-  verb, is an established pattern, not a one-off — and the third
-  instance finally explains why: delegation strips the trailer
-  context, not a missing line in the skill file.
-- proposed scope: a post-agent step in `march.yml` (and its
-  `templates/` mirror) that diffs `HEAD` against the pre-run
-  SHA when the ceiling didn't skip, and — if new commits landed
-  without the trailer on all of them — opens an unlabeled
-  issue naming the offending SHA (the loud-not-silent pattern
-  agents.md rule 6 already prescribes elsewhere). Gate-side
-  enforcement isn't possible (verify.mjs can't tell cloud from
-  local commits), so this has to live in the workflow, not the
-  gate. Complements, rather than duplicates, `[user-issue #53]`'s
-  own proposed fix (narrow `skills/critique.md` step 3 so a
-  delegate only performs the walk and never step 6/7 itself) —
-  that fix closes the specific delegation gap found here; this
-  candidate's mechanical check remains the general safety net
-  for any future way a cloud commit could drop the trailer.
-- estimated phases: 1 (workflow-only, no template API change)
-- conflicts: none.
-
-### [ ] [score 6.3] AUDIT's unwritten "favor the queue" tie-break is starving a cheap, real AUDIT-native row
-- proposed: 2026-07-24 (digest); re-evidenced 2026-09-05 (expand
-  pass 8)
-- source signals: `plan/AUDIT.md`'s `[A/E, 2.7]` row (README's
-  "Files added" checklist undersells `scripts/` — impact 3,
-  ease 9, one of the cheapest fixes in the file) first appeared
-  around cloud tick 2026-07-17 and has since been cited as tied
-  or narrowly outscored by a `plan/CRITIQUE.md` row in at least
-  ten separate tick log-lines through 2026-07-24, every single
-  time it was in contention. The tie-break that keeps beating it
-  ("favor the queue") is a real, consistently-applied
-  convention, but it exists only as repeated log narrative in
-  `plan/AUDIT.md` — it was never written into `skills/iterate.md`
-  §3 as an actual rule, so nobody can inspect or challenge it as
-  policy, and it has no aging counter-pressure. Signal A (fresh
-  instance), 2026-09-05: two more AUDIT-native rows are now
-  living examples of the same starvation, older than the
-  original evidence — `[C, 2.4]` (`triage.md`'s dead
-  `ship-data.md §6` citation) first appeared 2026-08-02 and
-  `[A, 2.4]` (`templates/claude/hooks/guard.mjs` drifted from
-  the kit's own hardening) first appeared ~2026-08-24; both have
-  been reproduced unchanged and left Pending across at least
-  seven intervening ticks (2026-08-25 through 2026-09-04) each
-  time a `plan/CRITIQUE.md` row was in contention, per
-  `plan/AUDIT.md`'s own tie-break log lines — 34 and 12 days
-  unshipped respectively, longer than the original `[A/E, 2.7]`
-  row ever waited before this candidate was first filed.
-- rationale: a one-line, ease-9 fix sitting seven-plus days
-  unshipped purely because of an unwritten scoring convention is
-  exactly the "starved queue" pattern `skills/digest.md` §3 step 4
-  names as a tuning trigger — not because the fix is hard, risky, or
-  actually low-value. That two independent rows have now each
-  waited over a week (one over a month) confirms this isn't a
-  one-off tie but a standing structural bias in favor of the
-  CRITIQUE queue.
-- proposed scope: write the "favor the queue on ties" convention
-  explicitly into `skills/iterate.md` §3 as an inspectable rule,
-  paired with a small aging nudge (e.g. `+0.1` per tick an AUDIT
-  row is passed over on a tie, capped) so a persistently-tied
-  cheap row eventually wins instead of losing indefinitely.
-- estimated phases: 1 (doc/rule-only, no template API change)
-- conflicts: none.
 
 ### [ ] [score 6.5] Auto mode: Claude Code's new default permission model isn't in the kit's playbooks
 - proposed: 2026-09-09 (expand pass 9); re-evidenced 2026-09-19
@@ -1051,206 +397,6 @@
 - estimated phases: 1
 - conflicts: none.
 
-### [ ] [score 6.2] `/doctor prompt-audit` isn't in the kit's prompt-maintenance story
-- proposed: 2026-09-28 (expand pass 16)
-- source signals: Claude Code v2.1.283's changelog — "Added
-  `/doctor prompt-audit` (also `/checkup prompt-audit`) to
-  audit your CLAUDE.md files, skills, agents and commands for
-  prompting patterns written for older models." Confirmed via
-  a fresh raw-text fetch of
-  `raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`
-  this pass (grepped directly, not a summarized read): the
-  immediately preceding entry (v2.1.282) shows the command
-  already existed and was actively developed that same window —
-  "Improved `prompt-audit` on Claude Code configuration: stale
-  paths, stale commands and contradicting instruction files now
-  lead the report, and thinking keywords that Claude Code
-  documents are kept" — so this is a maturing, not
-  brand-new-and-unstable, surface. Zero hits for "prompt-audit"
-  or "prompt audit" anywhere in this repo's history
-  (`git log --all -i --grep`) or docs. This is the direct
-  sibling of the already-pending `/skill-doctor` candidate
-  (score 5.8, expand pass 10) — same class of first-party
-  auditing command, but this one names its targets as exactly
-  the four artifact types nexus ships and calls public API:
-  CLAUDE.md files (`templates/claude/CLAUDE.md`), skills
-  (`skills/*.md` / `templates/skills/*.md`), agents
-  (`.claude/agents/`), and commands (`.claude/commands/` /
-  `templates/claude/commands/`).
-- rationale: nexus's product IS this exact artifact family —
-  `customization/claude-code.md` and `concepts/skills-anatomy.md`
-  already own the kit's prompting-quality story (voice, wrap,
-  anatomy conventions the verify gate partially checks). A
-  first-party command that flags "prompting patterns written
-  for older models" and "contradicting instruction files" is
-  on-mission for both this repo's own maintenance (skills/*.md
-  drift is the single most-audited defect class in
-  `plan/AUDIT.md`) and for adopters who inherit a growing
-  `skills/` directory. Cheap: doc-only, no template API change.
-- proposed scope: a short subsection in
-  `customization/claude-code.md` (near the existing
-  `/skill-doctor` candidate's proposed home) naming
-  `/doctor prompt-audit` / `/checkup prompt-audit`, what it
-  checks (stale paths, stale commands, contradicting
-  instructions, older-model prompting patterns), and when to
-  run it (after `/skill-doctor` pruning, or before a `/critique`
-  pass). Investigate, don't assume: confirm the command's actual
-  output format and whether it flags anything in this repo's own
-  `skills/*.md`/`CLAUDE.md` before writing the mapping — a first
-  read of a changelog blurb may not match the real CLI surface,
-  same caveat as the `/skill-doctor` candidate.
-- estimated phases: 1
-- conflicts: none — pairs naturally with the pending
-  `/skill-doctor` candidate (score 5.8); sequence together if
-  both promote, since they'd likely land in the same
-  `customization/claude-code.md` section.
-
-### [ ] [score 3.5] pulse.mjs's candidate-pending count still includes the four `[promoted]`-tagged rows never relocated out of `## Pending`
-- proposed: 2026-09-29 (digest)
-- source signals: today's pulse read "29 pending, oldest 90d,"
-  and this digest's own hand-count (per `skills/digest.md` §3
-  step 2/4) put 22 of those over the 21-day silting threshold.
-  But this file's `## Pending` section (lines 12-1025) actually
-  contains only 25 genuine `### [ ]` rows — four of the 29
-  `### ` headers `pulse.mjs` walks are `[promoted 2026-08-23 →
-  phase N]` rows (phases 19/20/21/22) that the 2026-08-23
-  `/oversight` note explicitly says stay "under Pending above
-  with relabeled `[promoted …]` headers, so their evidence
-  trails survive intact" — a deliberate choice, but
-  `scripts/pulse.mjs`'s `countRows()` (`/^### /` — any header)
-  and its `proposedDates` extraction (any `- proposed:` line in
-  the section) don't distinguish `[ ]` from `[promoted …]`, so
-  both the pending-count and the >21d/oldest aging numbers
-  double-count already-shipped work as still-pending. This exact
-  gap was already named as a known loose end in phase 30's own
-  brief (`plan/phases/phase_30_candidate_aging_silt_guard.md`
-  Non-goals: "Not fixing the pre-existing `[promoted]`-tag
-  filing drift... inflating `pulse.mjs`'s mechanical count by
-  4. Out of scope for this phase; already on record as a loose
-  end, not a duplicate candidate") but has sat unfiled as an
-  actual candidate for 37 days since — surfaced in past
-  `plan/DIGEST.md` snapshots (overwritten nightly, so never
-  durable) but never promoted into this queue until now.
-- rationale: phase 30 built the "oversight needed: candidate
-  queue silting" alarm specifically so a human doesn't have to
-  notice queue rot by hand — but the alarm's own inputs are
-  currently off by a consistent +4 on both the count and the
-  >21d tally (25 real pending vs. 29 reported; 18 real >21d vs.
-  22 reported), which could either cry wolf on a queue that's
-  milder than reported, or — if the drift grows past four rows —
-  mask real staleness the same way title-only crash-alarm
-  dedupe does (see the score-4.5 candidate above). The true
-  oldest-pending figure (2026-07-02, ~90d) happens to be
-  unaffected since a genuine `[ ]` row shares that date, but the
-  count itself is provably wrong today, not hypothetically.
-  Cheap to fix, already root-caused, already scoped by phase
-  30's own brief as a fair follow-up.
-- proposed scope: teach `scripts/pulse.mjs`'s `pendingSection`
-  consumers (`countRows()` and the `proposedDates` map/filter in
-  the candidates block) to skip any header matching
-  `/^### \[promoted/` — or, simpler, physically relocate the
-  four `[promoted 2026-08-23 → phase 19/20/21/22]` rows from
-  `## Pending` to `## Promoted` now (their evidence trails
-  already live in the `## Promoted` section's 2026-08-23 summary
-  note, so moving the full rows loses nothing) and add a one-line
-  note to `skills/expand.md` or `skills/oversight.md` that
-  promoted rows must relocate, not just relabel, going forward.
-  Either half closes the gap; doing both is more robust.
-- estimated phases: 1
-- conflicts: none.
-
-### [ ] [score 6.5] Arm `CLAUDE_CODE_RETRY_WATCHDOG` in the cloud workflows so transient 429/529s are waited out instead of crash-alarming
-- proposed: 2026-10-09 (expand pass 20)
-- source signals: Signal E (platform drift) — Claude Code's
-  changelog, fetched fresh this pass
-  (`raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`,
-  grepped directly): v2.1.295 (today's latest, three versions past
-  pass 19's v2.1.292 check) adds
-  `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` to cap how long
-  `CLAUDE_CODE_RETRY_WATCHDOG` — described elsewhere in the same
-  changelog's history ("Changed `CLAUDE_CODE_MAX_RETRIES` to cap at
-  15; for unattended sessions, use `CLAUDE_CODE_RETRY_WATCHDOG`
-  instead") as the mechanism built specifically for unattended
-  sessions — waits out 429 and 529 errors before giving up. Neither
-  env var appears anywhere in this repo (`git log --all -i --grep`,
-  zero hits; grepped across `.github/workflows/`, zero hits)
-  despite `march.yml`, `night.yml`, and `heartbeat.yml` all running
-  unattended, with no human present to retry a failed tick by hand.
-  Signal A (`plan/AUDIT.md`) — this isn't hypothetical: the
-  already-pending "[score 4.5] Crash-alarm dedupe matches by
-  generic title only" candidate's own evidence shows two
-  independent 429 `rate_limit` crashes in a single 24h window
-  (2026-09-21, runs `35525362773` and `35540854118`), both of which
-  exited the tick entirely rather than waiting out the transient
-  limit.
-- rationale: today the only response to a transient 429/529 is the
-  whole GitHub Actions job failing — the crash-alarm then fires
-  (or, per the 4.5 candidate, gets masked by title-only dedupe).
-  `CLAUDE_CODE_RETRY_WATCHDOG` is Claude Code's own first-party
-  answer to exactly this shape of problem, and the new
-  `_MAX_WAIT_MS` cap removes the previous objection to arming it in
-  a job with a hard `timeout-minutes` ceiling — the wait is now
-  bounded and tunable against that ceiling instead of open-ended.
-  Distinct from, and complementary to, the 4.5 candidate: that one
-  makes a crash visible when it happens; this one prevents a whole
-  class of crashes (transient rate/overload errors) from happening
-  at all.
-- proposed scope: add `CLAUDE_CODE_RETRY_WATCHDOG` (exact value per
-  the real flag semantics — investigate, don't assume, the
-  changelog blurb doesn't confirm whether it's a boolean truthy or
-  a specific token) and a `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS`
-  set comfortably under each workflow's own `timeout-minutes` to
-  the `env:` block of `.github/workflows/march.yml`, `night.yml`,
-  and `heartbeat.yml`, plus their `templates/.github/workflows/`
-  mirrors (agents.md rule 7); a short note in
-  `.github/CLOUD_LOOP.md` and `playbooks/cloud-loop.md` naming the
-  two env vars and why the wait is capped below the job timeout,
-  not uncapped.
-- estimated phases: 1 (workflow + doc only, no template API change
-  beyond the env block)
-- conflicts: none — complements rather than overlaps the pending
-  "[score 4.5] Crash-alarm dedupe" candidate above.
-
-### [ ] [score 7.0] heartbeat's wedged-run canceller breaks outright when the workflow it watches is disabled, instead of skipping like its two sibling steps
-- proposed: 2026-10-21 (digest)
-- source signals: two consecutive heartbeat runs failed today —
-  2026-10-21T04:43:57Z (run 39545645949) and 2026-10-21T11:46:50Z
-  (run 39594489838) — both on `could not find any workflows named
-  march`. `gh run list --workflow <name>` can't resolve a workflow
-  by its display name once it leaves the `active` state: `gh
-  workflow list --all` shows `march` as `disabled_manually` since
-  2026-10-20T23:20:24Z, the owner's deliberate pause during
-  today's marathon local `/heads-down` session (`a1f5f127`). The
-  "Cancel wedged runs" step (`.github/workflows/heartbeat.yml`'s
-  first step) loops `$WATCH` ("march night") and calls `gh run
-  list --workflow "$wf" --status in_progress` with no armed-state
-  guard, so it hard-fails under `bash -e` for as long as any
-  watched workflow stays non-`active`. Today's own spec-32 chunks
-  (`b6acc842`, committed 2026-10-21T14:51:43Z) taught the other
-  two steps ("Alarm if not armed", "Alarm if march or night has
-  not succeeded a tick in time") to read `gh workflow list --all`
-  first and skip a non-`active` workflow instead of erroring —
-  step 1 still lacks that exact guard, and its failure aborts the
-  whole job (so the two newer steps never even ran on either of
-  today's two failing ticks). The template twin
-  (`templates/.github/workflows/heartbeat.yml`) is byte-identical,
-  so every adopter who pauses a watched workflow hits the same
-  failure.
-- rationale: cheap (reuse the armed-state read the other two steps
-  already do) and adopter-facing (ships via the template); the
-  watchdog going dark exactly when the thing it watches is paused
-  is the worst time for it to fail silently-loud instead of
-  reporting cleanly.
-- proposed scope: `.github/workflows/heartbeat.yml` +
-  `templates/.github/workflows/heartbeat.yml`, step 1 only — read
-  `gh workflow list --all` once (ahead of all three steps, not
-  just the latter two) and skip `$wf` in the cancel loop when its
-  state isn't `active`. Touches `.github/workflows/*.yml`, so per
-  `agents.md` "Operational secrets" it lands from a local/human
-  session, not a cloud tick.
-- estimated chunks: 1
-- conflicts: none
-
 ## Promoted
 
 (moves to the build plan via /oversight)
@@ -1452,6 +598,866 @@
 - estimated phases: 1
 - conflicts: rides the heartbeat fix landed this session.
 
+> 2026-10-26 (/oversight): the rows promoted on 2026-08-23
+> (phases 19–22) and the one absorbed into spec 42 moved here
+> from Pending; the four latest live candidates promoted as
+> specs 68–71 (the fifth latest, the pulse count, was resolved
+> by that move and rejected).
+
+### [promoted 2026-10-26 → spec 68] [score 6.6] Derive verify.mjs's tree reverse-check from the tree diagrams themselves, not a hand-maintained dir list
+- proposed: 2026-09-23 (iterate, dispatched to expand — no
+  finding scored ≥3.0 this tick)
+- source signals: the exact same bug class — README.md's and/or
+  templates/README.md's "What's in this kit" tree diagram
+  drifting out of sync with what's actually on disk — has been
+  found and fixed at least eight separate times since
+  2026-07-19: `PHASE_CANDIDATES.md`/`CURRENT-STATE.md` under
+  `templates/plan/` (2026-07-19, `plan/AUDIT.md:192-209`), root
+  `CLAUDE.md` (2026-07-29, `plan/AUDIT.md:537-544`),
+  `skills/digest.md` in the collapsed `skills/` enumeration
+  (2026-07-25, `plan/AUDIT.md:398,420`), a second
+  `templates/plan/` pair (2026-08-27ish, `plan/AUDIT.md:599,640`),
+  `templates/workspace/` (2026-09-01→02,
+  `plan/AUDIT.md:760-767,2119`), `templates/scripts/install-hooks.mjs`
+  (this week, `plan/AUDIT.md:1904`), `templates/.github/ISSUE_TEMPLATE/`
+  (this week, `plan/AUDIT.md:1825`), and root `CONTRIBUTING.md`
+  (today, `plan/AUDIT.md:1737`). A ninth, structural instance
+  shipped this week too (commit `e7b4172`): `scripts/verify.mjs`'s
+  own `REVERSE_CHECK_DIRS` array — the gate's reverse-check
+  allowlist — had itself silently missed four directories
+  (`templates/.github`, `templates/data`, `templates/setup`,
+  `templates/env`) that are expanded per-file in
+  `templates/README.md`'s tree, so the gate couldn't catch drift
+  inside them either. Root cause, confirmed by reading
+  `scripts/verify.mjs:176-219`: `REVERSE_CHECK_DIRS` is a second,
+  independently hand-maintained list of directories, separate from
+  the tree diagrams it's meant to police — every time a new
+  top-level dir gets expanded in a tree, a human or tick has to
+  remember to also add it here, which is precisely the same
+  maintenance-drift failure mode as the tree diagrams themselves.
+  Root-level files (like `CONTRIBUTING.md`, `CLAUDE.md`) aren't
+  covered by the reverse-check at all — only files under a listed
+  directory are walked, so a root-level omission is invisible to
+  the gate by construction, not just by a missing list entry.
+- rationale: this is the single most-repeated bug class in the
+  kit's entire audit history (nine confirmed occurrences, roughly
+  one every 1-2 weeks), always low-severity individually (a docs
+  cosmetic gap, never a broken command) but collectively the
+  single biggest recurring tax on `/iterate` ticks — each
+  occurrence costs a full finding-and-fix cycle for something a
+  slightly smarter gate leg would catch for free, permanently.
+  Adopter-facing (both `README.md` and `templates/README.md`,
+  the two docs every adopter reads first) and cheap: the fix is
+  confined to `scripts/verify.mjs`'s existing `legTree()`
+  function, no template API change.
+- proposed scope: replace the hardcoded `REVERSE_CHECK_DIRS`
+  array with a derived list — every top-level directory (and the
+  repo root itself, for direct files only, non-recursive) that
+  actually appears as an entry in either parsed tree diagram
+  becomes reverse-checked automatically, with a small, explicit
+  exclusion list (kit-internal-only dirs like `plan/`, `.git/`,
+  `node_modules/`, that intentionally never appear in an
+  adopter-facing product tree) instead of an opt-in allowlist.
+  Root-level files get the same non-recursive walk-and-compare
+  treatment `legTree()` already does for subdirectories. This
+  closes both the "new subdir needs a list entry" gap and the
+  root-level-file blind spot in one pass.
+- estimated phases: 1 (verify.mjs only, no template API change —
+  agents.md rule 7 doesn't apply since REVERSE_CHECK_DIRS isn't
+  documented public API)
+- conflicts: none.
+
+### [promoted 2026-10-26 → spec 69] [score 6.2] `/doctor prompt-audit` isn't in the kit's prompt-maintenance story
+- proposed: 2026-09-28 (expand pass 16)
+- source signals: Claude Code v2.1.283's changelog — "Added
+  `/doctor prompt-audit` (also `/checkup prompt-audit`) to
+  audit your CLAUDE.md files, skills, agents and commands for
+  prompting patterns written for older models." Confirmed via
+  a fresh raw-text fetch of
+  `raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`
+  this pass (grepped directly, not a summarized read): the
+  immediately preceding entry (v2.1.282) shows the command
+  already existed and was actively developed that same window —
+  "Improved `prompt-audit` on Claude Code configuration: stale
+  paths, stale commands and contradicting instruction files now
+  lead the report, and thinking keywords that Claude Code
+  documents are kept" — so this is a maturing, not
+  brand-new-and-unstable, surface. Zero hits for "prompt-audit"
+  or "prompt audit" anywhere in this repo's history
+  (`git log --all -i --grep`) or docs. This is the direct
+  sibling of the already-pending `/skill-doctor` candidate
+  (score 5.8, expand pass 10) — same class of first-party
+  auditing command, but this one names its targets as exactly
+  the four artifact types nexus ships and calls public API:
+  CLAUDE.md files (`templates/claude/CLAUDE.md`), skills
+  (`skills/*.md` / `templates/skills/*.md`), agents
+  (`.claude/agents/`), and commands (`.claude/commands/` /
+  `templates/claude/commands/`).
+- rationale: nexus's product IS this exact artifact family —
+  `customization/claude-code.md` and `concepts/skills-anatomy.md`
+  already own the kit's prompting-quality story (voice, wrap,
+  anatomy conventions the verify gate partially checks). A
+  first-party command that flags "prompting patterns written
+  for older models" and "contradicting instruction files" is
+  on-mission for both this repo's own maintenance (skills/*.md
+  drift is the single most-audited defect class in
+  `plan/AUDIT.md`) and for adopters who inherit a growing
+  `skills/` directory. Cheap: doc-only, no template API change.
+- proposed scope: a short subsection in
+  `customization/claude-code.md` (near the existing
+  `/skill-doctor` candidate's proposed home) naming
+  `/doctor prompt-audit` / `/checkup prompt-audit`, what it
+  checks (stale paths, stale commands, contradicting
+  instructions, older-model prompting patterns), and when to
+  run it (after `/skill-doctor` pruning, or before a `/critique`
+  pass). Investigate, don't assume: confirm the command's actual
+  output format and whether it flags anything in this repo's own
+  `skills/*.md`/`CLAUDE.md` before writing the mapping — a first
+  read of a changelog blurb may not match the real CLI surface,
+  same caveat as the `/skill-doctor` candidate.
+- estimated phases: 1
+- conflicts: none — pairs naturally with the pending
+  `/skill-doctor` candidate (score 5.8); sequence together if
+  both promote, since they'd likely land in the same
+  `customization/claude-code.md` section.
+
+### [promoted 2026-10-26 → spec 70] [score 6.5] Arm `CLAUDE_CODE_RETRY_WATCHDOG` in the cloud workflows so transient 429/529s are waited out instead of crash-alarming
+- proposed: 2026-10-09 (expand pass 20)
+- source signals: Signal E (platform drift) — Claude Code's
+  changelog, fetched fresh this pass
+  (`raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md`,
+  grepped directly): v2.1.295 (today's latest, three versions past
+  pass 19's v2.1.292 check) adds
+  `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS` to cap how long
+  `CLAUDE_CODE_RETRY_WATCHDOG` — described elsewhere in the same
+  changelog's history ("Changed `CLAUDE_CODE_MAX_RETRIES` to cap at
+  15; for unattended sessions, use `CLAUDE_CODE_RETRY_WATCHDOG`
+  instead") as the mechanism built specifically for unattended
+  sessions — waits out 429 and 529 errors before giving up. Neither
+  env var appears anywhere in this repo (`git log --all -i --grep`,
+  zero hits; grepped across `.github/workflows/`, zero hits)
+  despite `march.yml`, `night.yml`, and `heartbeat.yml` all running
+  unattended, with no human present to retry a failed tick by hand.
+  Signal A (`plan/AUDIT.md`) — this isn't hypothetical: the
+  already-pending "[score 4.5] Crash-alarm dedupe matches by
+  generic title only" candidate's own evidence shows two
+  independent 429 `rate_limit` crashes in a single 24h window
+  (2026-09-21, runs `35525362773` and `35540854118`), both of which
+  exited the tick entirely rather than waiting out the transient
+  limit.
+- rationale: today the only response to a transient 429/529 is the
+  whole GitHub Actions job failing — the crash-alarm then fires
+  (or, per the 4.5 candidate, gets masked by title-only dedupe).
+  `CLAUDE_CODE_RETRY_WATCHDOG` is Claude Code's own first-party
+  answer to exactly this shape of problem, and the new
+  `_MAX_WAIT_MS` cap removes the previous objection to arming it in
+  a job with a hard `timeout-minutes` ceiling — the wait is now
+  bounded and tunable against that ceiling instead of open-ended.
+  Distinct from, and complementary to, the 4.5 candidate: that one
+  makes a crash visible when it happens; this one prevents a whole
+  class of crashes (transient rate/overload errors) from happening
+  at all.
+- proposed scope: add `CLAUDE_CODE_RETRY_WATCHDOG` (exact value per
+  the real flag semantics — investigate, don't assume, the
+  changelog blurb doesn't confirm whether it's a boolean truthy or
+  a specific token) and a `CLAUDE_CODE_RETRY_WATCHDOG_MAX_WAIT_MS`
+  set comfortably under each workflow's own `timeout-minutes` to
+  the `env:` block of `.github/workflows/march.yml`, `night.yml`,
+  and `heartbeat.yml`, plus their `templates/.github/workflows/`
+  mirrors (agents.md rule 7); a short note in
+  `.github/CLOUD_LOOP.md` and `playbooks/cloud-loop.md` naming the
+  two env vars and why the wait is capped below the job timeout,
+  not uncapped.
+- estimated phases: 1 (workflow + doc only, no template API change
+  beyond the env block)
+- conflicts: none — complements rather than overlaps the pending
+  "[score 4.5] Crash-alarm dedupe" candidate above.
+
+### [promoted 2026-10-26 → spec 71] [score 7.0] heartbeat's wedged-run canceller breaks outright when the workflow it watches is disabled, instead of skipping like its two sibling steps
+- proposed: 2026-10-21 (digest)
+- source signals: two consecutive heartbeat runs failed today —
+  2026-10-21T04:43:57Z (run 39545645949) and 2026-10-21T11:46:50Z
+  (run 39594489838) — both on `could not find any workflows named
+  march`. `gh run list --workflow <name>` can't resolve a workflow
+  by its display name once it leaves the `active` state: `gh
+  workflow list --all` shows `march` as `disabled_manually` since
+  2026-10-20T23:20:24Z, the owner's deliberate pause during
+  today's marathon local `/heads-down` session (`a1f5f127`). The
+  "Cancel wedged runs" step (`.github/workflows/heartbeat.yml`'s
+  first step) loops `$WATCH` ("march night") and calls `gh run
+  list --workflow "$wf" --status in_progress` with no armed-state
+  guard, so it hard-fails under `bash -e` for as long as any
+  watched workflow stays non-`active`. Today's own spec-32 chunks
+  (`b6acc842`, committed 2026-10-21T14:51:43Z) taught the other
+  two steps ("Alarm if not armed", "Alarm if march or night has
+  not succeeded a tick in time") to read `gh workflow list --all`
+  first and skip a non-`active` workflow instead of erroring —
+  step 1 still lacks that exact guard, and its failure aborts the
+  whole job (so the two newer steps never even ran on either of
+  today's two failing ticks). The template twin
+  (`templates/.github/workflows/heartbeat.yml`) is byte-identical,
+  so every adopter who pauses a watched workflow hits the same
+  failure.
+- rationale: cheap (reuse the armed-state read the other two steps
+  already do) and adopter-facing (ships via the template); the
+  watchdog going dark exactly when the thing it watches is paused
+  is the worst time for it to fail silently-loud instead of
+  reporting cleanly.
+- proposed scope: `.github/workflows/heartbeat.yml` +
+  `templates/.github/workflows/heartbeat.yml`, step 1 only — read
+  `gh workflow list --all` once (ahead of all three steps, not
+  just the latter two) and skip `$wf` in the cancel loop when its
+  state isn't `active`. Touches `.github/workflows/*.yml`, so per
+  `agents.md` "Operational secrets" it lands from a local/human
+  session, not a cloud tick.
+- estimated chunks: 1
+- conflicts: none
+
+### [promoted 2026-08-23 → phase 22] [score 8.8] Workspace-of-repos as a first-class adoption path
+- proposed: 2026-07-03
+- source signals: two sibling adopters independently converged
+  on the same topology — un-versioned workspace root,
+  org-per-project GitHub layout, `plan/` its own repo, sibling
+  product repos — which the kit only half-documents
+  (`playbooks/polyrepo.md` covers the plan split alone).
+- rationale: two real adoptions converging unprompted is the
+  strongest possible signal; every workspace adopter currently
+  re-improvises the root conventions.
+- proposed scope: `playbooks/workspace.md` (un-versioned-root
+  rule, org-per-project, what lives only at root, decision
+  matrix, ready-when checklist); `templates/workspace/` root
+  family (workspace CLAUDE.md + AGENTS.md mirror, scratch
+  README, repo-claude propagation template); a
+  topology-detection step in the adopt prompt with a
+  confirm-with-user stop; edits to `playbooks/polyrepo.md` +
+  `concepts/architecture.md` so single-repo -> polyrepo ->
+  workspace reads as one ladder.
+- estimated phases: 1-2
+- conflicts: extends polyrepo.md, never replaces it.
+
+### [promoted 2026-08-23 → phase 21] [score 8.6] prompts/ as canonical files + a five-line paste
+- proposed: 2026-07-03
+- source signals: the two ~60-line README paste-prompts are the
+  funnel's biggest wall; prompt fixes today mean "re-paste the
+  new blob".
+- rationale: `prompts/adopt.md` + `prompts/pitch.md` as
+  versioned, gate-linted files turn the paste into five lines
+  that self-clone (or one raw.githubusercontent fetch line),
+  client-agnostic by construction; every other doorway (npx,
+  plugin) later references the same canonical text.
+- proposed scope: `prompts/adopt.md`, `prompts/pitch.md`,
+  `prompts/README.md`; README TL;DR sections shrink ~120
+  lines; a verify leg keeping any README excerpt byte-synced
+  with prompts/; `skills/critique.md` dry-runs the new short
+  paste; agents.md notes prompts/ paths are public API.
+- estimated phases: 1
+- conflicts: pairs with the README conversion pass below —
+  promote together or sequence prompts/ first.
+
+### [x] [score 8.5] Two-ring secrets topology (.env vs .env.workspace) (absorbed into spec 42, 2026-10-21)
+- proposed: 2026-07-03
+- source signals: both mature adoptions run the same secrets
+  layering the kit says nothing about — per-repo `.env` for the
+  loop's own gate tokens, workspace-root `.env.workspace` for
+  cross-repo operational secrets, `.secrets/` for key FILES.
+- rationale: the safety property is structural, not procedural —
+  the workspace root is outside every repo, so `git add -A`
+  physically cannot leak Ring 2. Answers the scariest adopter
+  question ("where do secrets go?") with architecture.
+- proposed scope: `customization/workspace-secrets.md` (two
+  rings + key-file pointer rule + placement tiebreaker: consumed
+  by, or granting power over, more than one repo -> Ring 2);
+  `templates/env/env.workspace.example` (names never values;
+  per-key grammar: minted-by runbook, mirrored-to, expires);
+  header pointer in `templates/env/env.example`; see-also links
+  in polyrepo.md + external-services.md.
+- estimated phases: 1
+- conflicts: none — opens with "skip unless polyrepo/workspace".
+
+### [promoted 2026-08-23 → phase 19] [score 9.0] Rewrite playbooks/new-project.md's step-4 copy-and-placeholder walkthrough as one verified sequence
+- proposed: 2026-07-06; re-evidenced 2026-07-10, 2026-07-13,
+  2026-07-21, 2026-07-23 (x2), 2026-07-24, 2026-07-26
+- source signals: this is the second critique cycle in a row to
+  land findings in the same step-4/7 block of
+  playbooks/new-project.md. The four findings that originally
+  motivated this candidate (sibling-clone copy paths,
+  `PHASE_CANDIDATES.md` never copied, CLAUDE.md never landed at
+  root, and their combined ordering) are now all fixed
+  individually (see `plan/CRITIQUE.md` Done log) — and critique
+  pass 3 (2026-07-10) immediately found six more in the identical
+  region: `templates/plan/phases/` also never lands in step 4's
+  copy array despite step 5 depending on it (HIGH — literal
+  placeholder tokens ship in phase 1's brief); the placeholder
+  grep scope still misses `./scripts` and `./.env.example` (MED,
+  confirmed unresolved `<PROJECT_LOWER>`/`<REPO_SLUG>` tokens);
+  the blanket `skills/` copy still contradicts the adopt-by-need
+  contract (MED); step 7 redundantly re-copies
+  `deploy-check.mjs` already placed by step 4's bulk copy (LOW);
+  step 6 edits a `package.json` that doesn't exist at that point
+  in the walk (LOW); the pnpm sed caveat has no worked example
+  (MED, see the sibling candidate below). Critique pass 4
+  (2026-07-13) sharpened the adopt-by-need prune finding still
+  further: the "Prune adopt-by-need files" fix only gives worked
+  removal steps for 4 of `templates/README.md`'s ~12 adopt-by-need
+  rows, leaving `skills/digest.md`, `skills/bootstrap.md`,
+  `scripts/refresh-critique-session.mjs`,
+  `scripts/check-secrets-liveness.mjs`, and
+  `scripts/stack-lifecycle.mjs` unconditionally landed with no
+  prompt to remove them for adopters who don't need them —
+  confirmed in a scratch repro. Third cycle in a row landing in
+  this same block. A fresh A-G AUDIT sweep (2026-07-21, not a
+  critique pass) found a fourth instance of the identical
+  grep-scope bug: the same one-liners also omit `./data`, so
+  `templates/data/README.md`'s `<PROJECT>`/`<PROJECT_PKG_PREFIX>`
+  tokens survive the sweep unresolved for GitHub-as-DB adopters —
+  fixed same-commit (`ced0304`), the third distinct scope gap
+  found this way after `./scripts` and `./.env.example`. The bug
+  class now reproduces from both signal A (audit) and signal B
+  (critique), always in the same one-liners. Since pass 4
+  (2026-07-22), four more instances landed in the identical
+  block, two per sub-mechanism the proposed scope already names:
+  the placeholder one-liner broke again twice more — bare
+  `sed -i` misparsed by stock macOS/BSD sed (2026-07-23, commit
+  `70c8b6c`) and an unguarded `./data` grep erroring loudly when
+  the directory is absent (2026-07-23, commit `fe46a28`) — and
+  the "Prune adopt-by-need files" sub-step missed two more of the
+  ~12 adopt-by-need rows exactly as this candidate's proposed
+  scope predicted: the `.claude/` Claude-Code-only bundle
+  (2026-07-24, commit `9d404ce`) and `scripts/bootstrap.mjs`, the
+  1009-line executor behind `/bootstrap` (2026-07-26, commit
+  `0f19039`). Both prune misses are the identical failure this
+  candidate already called out by name ("only gives worked
+  removal steps for 4 of ~12 adopt-by-need rows") — the fix
+  pattern is not finding new bug classes, it is re-confirming the
+  one this candidate proposes to close structurally.
+- rationale: tick-by-tick `/iterate` fixes keep patching this
+  block and it keeps re-breaking on the next fresh-eyes pass —
+  the strongest possible evidence that the block's *structure*
+  (copy array + placeholder sweep + prune, spread loosely across
+  steps 4-7) is the defect, not any single line in it. Signal B's
+  cluster pattern, now sextupled across six re-evidencing dates,
+  and no longer critique-only. Six ticks have each shipped a
+  correct, narrow fix for one row/directory/mechanism at a time
+  — none has shipped the structural rewrite that would stop the
+  next instance before it's found by hand.
+- proposed scope: rewrite playbooks/new-project.md's step 4 (copy)
+  and its placeholder-replace step so paths match the README's
+  recommended sibling-clone layout; add the missing
+  `templates/plan/phases/` copy line (and re-sweep placeholders
+  over it); widen the grep scope to every directory step 4
+  populates (`./scripts`, `./.env.example`, `./data`) once,
+  structurally, instead of patching one omitted directory per
+  sweep; add an explicit
+  adopt-by-need prune sub-step right after the bulk copy that
+  covers all ~12 of `templates/README.md`'s adopt-by-need rows,
+  not just the 6 already worked one at a time (Surface/
+  Structured-data/UGC-gated/`.claude/`/`scripts/bootstrap.mjs`);
+  fold step 7's now-redundant deploy-check.mjs copy
+  into step 4's bulk copy and reword step 7 to "wire the file
+  already present"; clarify step 6 describes the target shape for
+  phase 1's brief to produce, not something to run against an
+  empty repo. Carries all current CRITIQUE rows in this cluster to
+  Done in the same commit (leaves the pnpm/settings.json row to
+  the sibling candidate below, and the two single-instance LOW
+  rows — step 2's bearings.md placeholder mismatch,
+  `<PROJECT_PKG_PREFIX>`'s worked example — as plain `/iterate`
+  ticks; they don't share this cluster's root cause).
+- estimated phases: 1
+- conflicts: none — tightens an existing playbook, no template
+  API change.
+
+### [promoted 2026-08-23 → phase 20] [score 8.5] Cloud march ticks must not dispatch background/async agents
+- proposed: 2026-07-17 (digest); re-evidenced 2026-08-02
+  (expand pass 6)
+- source signals: the 2026-07-17 03:04 UTC cloud tick (run
+  `29551508864`) reached `/iterate`'s audit-refresh step, found
+  `plan/AUDIT.md` >24h stale, and launched an async background
+  subagent to run the A-G sweep instead of running it inline.
+  The log shows it explicitly deciding to "wait for the audit
+  agent to finish," then the GitHub Actions job's own
+  `terminal_reason` flips to `completed` ~4 seconds later — no
+  commit, no verify run, no trace of the subagent's output ever
+  landing. The very next tick (07-17 08:45, run `29567537795`)
+  hit the identical stale-audit branch but ran the sweep inline
+  and shipped cleanly in ~6 minutes (commit `4ca0c36`), proving
+  the sweep itself isn't the bottleneck — the async dispatch
+  pattern is. 1 of 4 ticks in that 26h window was silently lost
+  this way (full pulse in `plan/DIGEST.md` 2026-07-17). Signal E
+  (platform drift), 2026-08-02: Claude Code's own Agent tool
+  description, current as of this pass (confirmed both via the
+  in-session tool schema and `code.claude.com/docs/en/whats-new`
+  Week 27, June 29 - July 3 2026: "subagents run in the
+  background by default so Claude keeps working while they
+  run"), now states "Agents run in the background by default...
+  Pass run_in_background: false to run an agent in the
+  foreground." That changed the failure mode this candidate was
+  written against: the original evidence was one tick explicitly
+  requesting background mode, but the platform default has since
+  flipped, so *any* `Agent(...)` call in a cloud tick that omits
+  `run_in_background` now backgrounds itself — not just calls
+  that opt in.
+- rationale: a GitHub Actions job is a single-shot process —
+  once the step (and the job) exits there is nothing left
+  running to deliver a background agent's completion
+  notification, so dispatching `Agent(..., run_in_background:
+  true)`-style work inside a cloud march tick is a guaranteed
+  no-op, not a performance win. `templates/.github/workflows/march.yml`
+  runs the identical one-shot pattern, so every adopter's cloud
+  loop carries the same latent trap. With backgrounding now the
+  platform default rather than an opt-in, the omission case (no
+  `run_in_background` param at all) is at least as likely to
+  bite an unattended cloud tick as the explicit-`true` case this
+  candidate was originally scored against — raising both
+  likelihood and adopter-facing severity.
+- proposed scope: add an explicit "cloud ticks run
+  synchronously — every Agent call must pass
+  `run_in_background: false` explicitly; the platform default is
+  background as of mid-2026, so omitting the param is itself a
+  background dispatch" line to the cloud-mode prompt block in
+  `.github/workflows/march.yml` and its `templates/` mirror,
+  plus a matching failure-mode entry in `.github/CLOUD_LOOP.md`
+  ("a tick logs launching a background/async audit agent then
+  exits clean with no commit" -> this root cause) and a note on
+  `skills/iterate.md`'s audit-delegation step.
+- estimated phases: 1 (doc/prompt-only, no template API change)
+- conflicts: none.
+
 ## Rejected
 
 (kept for the record, with reasons)
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 8.3] README above-the-fold conversion pass
+- proposed: 2026-07-03
+- source signals: conversion happens in the first screenful;
+  today the pitch is stated twice, the paste is 60 lines, and
+  the workspace shape has no front door. Full restructure
+  outline captured 2026-07-03 (ideation session).
+- rationale: hook -> proof -> qualify -> convert -> deepen ->
+  trust -> rules; target ~350 lines from ~690. The march.yml
+  badge whose green is produced by the loop it sells is proof
+  no competitor can hand-copy.
+- proposed scope: README-only editing session: kill the
+  blockquote echo, merge the three qualification sections into
+  one gate above the doors, collapse the two TL;DRs + mermaid
+  into a three-door section, replace eight playbook blurbs with
+  a router table (you have -> do this -> time), ouroboros proof
+  strip up top, date-stamped adoption-receipt diffstat in a
+  details block. Repoint the verify tree leg in the same commit.
+- estimated phases: 1
+- conflicts: depends on prompts/ landing first (the doors paste
+  five lines, not sixty).
+
+### [rejected 2026-10-26: absorbed by spec 58 (upgrade) and plan/nexus.lock] [score 8.2] Versioned releases + plan/nexus.lock + upgrade story
+- proposed: 2026-07-03
+- source signals: adopters copy from a moving main and can never
+  diff what changed; every packaging doorway needs something
+  stable to pin against.
+- rationale: "copy once, drift forever" becomes "pin, then
+  upgrade deliberately" — dependency semantics with nothing but
+  git tags and one JSON lock (kitVersion, kitCommit, per-file
+  hashAtCopy). Three-way merge separates "stale, cleanly
+  bumped" from "customized, needs eyes".
+- proposed scope: KIT_VERSION + CHANGELOG.md keyed by template
+  path; `scripts/kit-manifest.mjs` (hermetic sha256 walk);
+  lock-writing step in prompts/adopt.md; `playbooks/upgrade.md`
+  (git merge-file three-way; [needs-user-call] AUDIT rows for
+  conflicted files; pre-lock fallback via re-hash against
+  historical tags); verify legs for version/CHANGELOG sync.
+- estimated phases: 2
+- conflicts: prompts/ should land first (the lock step lives
+  there); permanent CHANGELOG discipline cost — worth it.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.9] Handshake runbook profile for setup/
+- proposed: 2026-07-03
+- source signals: a sibling adopter's runbooks follow a proven handshake
+  the kit's setup/ paradigm doesn't capture: "human dashboard
+  steps (~N min) -> drop these exact keys into the env file ->
+  say 'X is in' -> what the agent wires after the drop".
+- rationale: turns every external service into a
+  fill-in-the-blanks credential handoff; keys arrive in files,
+  not chat. The "THE STEP THAT CAN BREAK <X>" destructive-step
+  callout convention rides along.
+- proposed scope: `templates/setup/NN_service.handshake.md`
+  (four fixed sections; fenced env-block naming exact keys +
+  exact target file + resume signal); "two runbook profiles"
+  chooser in external-services.md (agent can do >80% via CLI
+  once it has a token -> handshake); profile column in
+  00_files.md legend.
+- estimated phases: 1
+- conflicts: none — second layer of the two-ring secrets story.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.6] Key custody map + hermetic keys lint
+- proposed: 2026-07-03
+- source signals: unattended windows die on "which file holds
+  this token, where is it mirrored, when does it expire" —
+  questions no kit file answers today.
+- rationale: one greppable names-only registry row per
+  credential (Key | Holder file | Minted by | Scopes | Mirrored
+  to | Expires | Rotate via), updated in the same commit as the
+  mint; a pure-string lint makes orphan/ghost/ambiguous keys a
+  gate failure while staying offline.
+- proposed scope: `templates/setup/00_keys.md`;
+  `templates/scripts/keys-audit.mjs` (opt-in leg); hands-off.md
+  pre-flight refuses a window that outlives any Expires cell;
+  /bootstrap rotate consumes Mirrored-to as its propagation
+  list.
+- estimated phases: 1
+- conflicts: builds on the two-ring topology + handshake rows.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.5] Package nexus as a Claude Code plugin
+- proposed: 2026-07-02 (design deepened 2026-07-03); re-evidenced
+  2026-09-14 (expand pass 12)
+- source signals: adoption friction (clone + copy + replace is
+  the whole TL;DR); Claude Code plugin/marketplace support.
+  Signal E (platform drift), 2026-09-14: Claude Code v2.1.269
+  (2026-09-11, confirmed via a fresh changelog fetch this pass)
+  shipped `claude plugin eval` — a first-party command that runs
+  a plugin's eval suite and returns scored, reproducible results.
+  This is the exact validation this candidate's proposed scope
+  was missing: the byte-diff verify leg only proves the plugin
+  build is reproducible, not that its three shipped commands
+  (adopt/upgrade/doctor) behave correctly.
+- rationale: `/plugin install nexus` collapses adoption Step 1;
+  the client-agnostic skills/ layout stays canonical. Deepened:
+  the plugin ships adopt/upgrade/doctor commands ONLY — never
+  the skill family, protecting the adopted-skills doctrine; the
+  nexus repo is its own marketplace so push = publish survives.
+- proposed scope: `.claude-plugin/marketplace.json` at root;
+  plugin/ generated by `scripts/build-plugin.mjs` (version ==
+  KIT_VERSION, commands wrap the canonical prompts/, vendored
+  templates snapshot for offline determinism); one verify leg
+  regenerating in-memory and byte-diffing; a `claude plugin eval`
+  suite exercising the three shipped commands; `playbooks/plugin.md`.
+- estimated phases: 1
+- conflicts: ship after prompts/ + releases/lock — the plugin
+  commands consume both.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.4] plan/ carries the workspace: resurrection files + doctor
+- proposed: 2026-07-03
+- source signals: the un-versioned root's obvious objection —
+  lose the machine, lose the topology. a sibling adopter's plan repo
+  already half-plays this role.
+- rationale: make plan/ the versioned carrier: canonical copies
+  of the root files, a names-only keys manifest, a clone map,
+  and a zero-dependency offline doctor. New-machine flow: clone
+  org/plan, copy root files up, clone per repos.md, re-run each
+  runbook's human beat, doctor until green.
+- proposed scope: `templates/workspace/plan-workspace/`
+  (keys.md names-only manifest, repos.md clone map, root/
+  canonical copies); `templates/workspace/workspace-doctor.mjs`
+  (root-not-a-repo, repos exist, keys present by name, no
+  secret path inside any repo tree); Resurrection section in
+  playbooks/workspace.md; pointer in recovery.md.
+- estimated phases: 1
+- conflicts: rides the workspace playbook candidate.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.3] Workspace-aware /bootstrap + /oversight
+- proposed: 2026-07-03
+- source signals: a sibling adopter's cloudflare runbook fans one
+  workspace token out to repo Actions secrets by hand.
+- rationale: teach the executor the two rings — env resolution
+  walks up (process env -> repo .env -> parent .env.workspace,
+  with stop conditions), secret fan-out walks down (gh secret
+  set per Mirrored-to target); a missing key's failure message
+  points at the runbook that mints it.
+- proposed scope: edits only — bootstrap-automation.md (env
+  resolution order + fan-out), external-services.md (/oversight
+  checks each key in its Holder file, names only), polyrepo.md
+  (custody map rides the plan repo).
+- estimated phases: 1
+- conflicts: depends on two-ring topology + custody map.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.2] Package-manager pluggability: the pnpm-only settings.json allowlist silently stalls npm/yarn/bun adopters
+- proposed: 2026-07-10
+- source signals: critique pass 3 (2026-07-10) —
+  `playbooks/new-project.md:35`'s "sed-replace if you use
+  npm/yarn/bun" caveat has no worked example and a naive
+  `s/pnpm/npm/g` breaks command syntax (`npm typecheck` needs
+  `run`); separately, and more seriously,
+  `templates/claude/settings.json`'s permission allowlist is
+  hardcoded to `Bash(pnpm verify:*)` / `Bash(pnpm test:*)` etc.
+  with no equivalent for other package managers.
+- rationale: an npm/yarn/bun adopter's verify-gate commands never
+  match the allowlist, so every unattended cloud tick silently
+  stalls on a permission prompt nobody is present to answer —
+  this directly defeats `README.md`'s "leave it for 80 hours"
+  pitch, the kit's core promise, for any adopter who isn't on
+  pnpm. Adopter-facing and severe out of proportion to how small
+  the fix is.
+- proposed scope: either (a) generate
+  `templates/claude/settings.json`'s allowlist entries from the
+  package-manager choice already captured during onboarding
+  (bootstrap.mjs already prompts/knows this), so npm/yarn/bun
+  land with matching `Bash(<pm> ...)` entries in the same commit
+  the placeholders resolve; or (b), if (a) is out of scope for one
+  phase, state plainly in `new-project.md` and `README.md` that
+  pnpm is a hard prerequisite until (a) ships, and give a real
+  worked sed example for the interim manual path. Either way,
+  fixes the allowlist/caveat mismatch `plan/CRITIQUE.md` flagged.
+- estimated phases: 1
+- conflicts: none — settings.json's allowlist shape is internal
+  to the template, not public API (agents.md rule 7 covers
+  paths + placeholder vocabulary, not allowlist contents).
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.1] npx nexus-adopt: the mechanical half as an initializer
+- proposed: 2026-07-03
+- source signals: clone + copy + placeholder-replace is
+  mechanical work no agent needs judgment for.
+- rationale: a zero-dependency initializer does the mechanical
+  half (infer placeholders from git remote/branch/dirname,
+  shallow-clone at the latest tag, copy per the templates
+  contract, write plan/nexus.lock) then prints exactly one
+  paste line handing the judgment half to ANY agent.
+- proposed scope: packaging/npx/ (bin + small test); release.yml
+  publishing on tag push (one NPM_TOKEN secret); README
+  one-command variant above the paste.
+- estimated phases: 1
+- conflicts: ship after prompts/ + releases; npm is a second
+  publish surface to keep in lockstep.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 7.0] ADOPTERS.md wall + badge + opt-in hatch beacon
+- proposed: 2026-07-03
+- source signals: the only zero-cost growth loop available under
+  the $0-marginal constraint.
+- rationale: registry rows are trivially mergeable community
+  PRs; the differentiated part is the beacon — an adopter's
+  first green tick (opt-in, off by default, loudly so) files a
+  "hatched" issue with verifiable first-tick evidence, and
+  /triage is the spam gate.
+- proposed scope: ADOPTERS.md seeded with the provenance
+  projects + paste-ready badge snippet; README "projects that
+  ship themselves" strip; NEXUS_HATCH_OPTIN= (empty default) in
+  env.example; one fires-once step in ship-a-phase.md; a
+  hatched route in triage.md.
+- estimated phases: 1
+- conflicts: beacon must stay opt-in or it reads as phone-home
+  telemetry in a kit whose brand is "you own everything".
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 5.5] playbooks/outgrow.md — the split ceremony
+- proposed: 2026-07-03
+- source signals: judged premature — no second real migration to
+  validate the ceremony against yet.
+- rationale: the single-repo -> workspace split will eventually
+  need a numbered, safe ceremony; write it when the first real
+  split happens and can serve as its test case.
+- proposed scope: deferred; the workspace playbook's decision
+  matrix + polyrepo.md cover the ladder's endpoints until then.
+- estimated phases: 1
+- conflicts: none.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 6.8] closeloop: thank the humans who file issues
+- proposed: 2026-07-02
+- source signals: a sibling adopter's `.claude/tools/closeloop.mjs`
+  (Postmark batch thank-you emails to issue reporters,
+  dry-run default, tested).
+- rationale: the address loop closes with the fix; closing
+  with the *reporter* compounds trust. Generalize as an
+  opt-in template next to loop-issue.mjs.
+- proposed scope: `templates/scripts/closeloop.mjs` +
+  customization section in the triage/moderation story.
+- estimated phases: 1
+- conflicts: email provider becomes an optional external
+  service (runbook required).
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 6.1] Critique-household pattern for auth-aware critique
+- proposed: 2026-07-02
+- source signals: a sibling adopter's planned `/visit` seals an
+  anonymous "critique household" so the observer never
+  consents to analytics (no GA4 pollution) — a pattern
+  auth-aware-critique.md doesn't cover.
+- rationale: adds the "observer must not pollute product
+  analytics/data" dimension to the five auth patterns.
+- proposed scope: new section in
+  `customization/auth-aware-critique.md` + env conventions.
+- estimated phases: 1
+- conflicts: none.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 5.9] Staged hardening for verify legs
+- proposed: 2026-07-02
+- source signals: a sibling adopter's `check.mjs` `*_IS_ERROR` flags —
+  new invariants start as warnings, flip to errors once the
+  corpus drains.
+- rationale: lets adopters (and this repo) add aggressive lint
+  legs without a big-bang cleanup; the flip commit is the
+  celebration.
+- proposed scope: warn-tier support in `scripts/verify.mjs` +
+  a paragraph in verify-gate.md.
+- estimated phases: 1
+- conflicts: none.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 6.5] Mechanically verify the Cloud-Run trailer on cloud ticks
+- proposed: 2026-07-20 (digest); re-evidenced 2026-07-26 (digest),
+  2026-09-05 (digest), 2026-09-25 (iterate, dispatched to expand
+  — no finding scored ≥3.0 this tick)
+- source signals: of the 4 cloud commits shipped in the trailing
+  24h window (2026-07-19 14:31 to 2026-07-20 09:07 UTC — all
+  4 `march` runs green, no failures), 1 — `a74f7b6` ("critique:
+  pass 6 — 4 findings (2 high, 2 med)", from the 2026-07-19
+  20:18 UTC tick) — landed with no `Cloud-Run:` trailer at all,
+  breaking agents.md rule 2's carve-out. The workflow's own
+  ceiling check (`march.yml`'s "Daily commit ceiling check"
+  step) counts cloud volume by `git log --grep='Cloud-Run:'`,
+  so this commit silently doesn't count toward the 8/24h
+  ceiling either — the miss is invisible from both the rule
+  side and the counting side. `scripts/verify.mjs` runs
+  foreground on every tick but has no leg that inspects the
+  commit trailer, since it can't distinguish a cloud commit
+  from a local one at gate time. Second instance found
+  2026-07-26 (digest): `427eb91` ("critique: pass 8 — 2 findings
+  (0 high, 1 med, 1 low)", from the 2026-07-25 20:20 UTC tick)
+  repeats the identical gap — confirmed via
+  `gh run view 30173383094 --log`, whose prompt block quotes the
+  exact trailer text verbatim, yet the shipped commit has no
+  body at all. Both observed misses are `/critique` verb commits
+  specifically (`a74f7b6`, `427eb91`), never an `/iterate` or
+  `/expand` commit in the ~60 cloud ticks sampled by digest
+  passes to date — narrows the likely root cause from "any
+  cloud commit can drop the trailer" to "the critique skill's
+  own commit step doesn't append it," which changes where the
+  eventual fix should look first. Third instance, 2026-09-04:
+  `3f29301` ("critique: pass 14 — 3 findings (0 high, 1 med, 2
+  low)") repeats the gap a third time, still on `/critique` —
+  but this time `/triage` traced the actual mechanism (filed as
+  `plan/AUDIT.md` `[user-issue #53]`): the tick delegated
+  `skills/critique.md` step 3's dry-run walk to a general-purpose
+  sub-agent, which went further than asked and ran steps 6-7
+  itself (append findings, commit, push) using its own prompt —
+  one that never carried the parent tick's cloud-mode trailer
+  text. This sharpens "the critique skill's own commit step
+  doesn't append it" into something more specific: the commit
+  step is fine when the parent tick runs it directly; the gap is
+  delegation-shaped, only surfacing when a sub-agent commits on
+  the parent's behalf. Fourth instance, 2026-09-24 (filed as
+  `plan/AUDIT.md` `[user-issue #63]`): commit `0cdb345`
+  ("critique: pass 20 — 2 findings (0 high, 1 med, 1 low)")
+  repeats the identical delegation-shaped gap — the sub-agent
+  appended to `plan/CRITIQUE.md` and committed + pushed directly
+  despite `skills/critique.md` step 3 already scoping it to
+  steps 3-5 only. Reporter spot-checked the commit's content
+  against its cited evidence and confirmed it's legitimate, so
+  this is purely the same process gap recurring a fourth time,
+  not a content defect. `[user-issue #63]`'s own `next` field
+  proposes the same two angles as `[user-issue #53]` before it:
+  a stronger literal imperative in the delegate prompt, and/or
+  this candidate's mechanical workflow-side check.
+- rationale: the trailer is the sole mechanism the ceiling
+  trusts; a tick that forgets it both violates the standing
+  rule silently and erodes the ceiling's accuracy in the
+  direction that's hardest to notice (undercounting, not
+  overcounting). Three misses now observed, all on the same
+  verb, is an established pattern, not a one-off — and the third
+  instance finally explains why: delegation strips the trailer
+  context, not a missing line in the skill file.
+- proposed scope: a post-agent step in `march.yml` (and its
+  `templates/` mirror) that diffs `HEAD` against the pre-run
+  SHA when the ceiling didn't skip, and — if new commits landed
+  without the trailer on all of them — opens an unlabeled
+  issue naming the offending SHA (the loud-not-silent pattern
+  agents.md rule 6 already prescribes elsewhere). Gate-side
+  enforcement isn't possible (verify.mjs can't tell cloud from
+  local commits), so this has to live in the workflow, not the
+  gate. Complements, rather than duplicates, `[user-issue #53]`'s
+  own proposed fix (narrow `skills/critique.md` step 3 so a
+  delegate only performs the walk and never step 6/7 itself) —
+  that fix closes the specific delegation gap found here; this
+  candidate's mechanical check remains the general safety net
+  for any future way a cloud commit could drop the trailer.
+- estimated phases: 1 (workflow-only, no template API change)
+- conflicts: none.
+
+### [rejected 2026-10-26: stale, proposed in July and never promoted; /expand may re-raise it with fresh evidence] [score 6.3] AUDIT's unwritten "favor the queue" tie-break is starving a cheap, real AUDIT-native row
+- proposed: 2026-07-24 (digest); re-evidenced 2026-09-05 (expand
+  pass 8)
+- source signals: `plan/AUDIT.md`'s `[A/E, 2.7]` row (README's
+  "Files added" checklist undersells `scripts/` — impact 3,
+  ease 9, one of the cheapest fixes in the file) first appeared
+  around cloud tick 2026-07-17 and has since been cited as tied
+  or narrowly outscored by a `plan/CRITIQUE.md` row in at least
+  ten separate tick log-lines through 2026-07-24, every single
+  time it was in contention. The tie-break that keeps beating it
+  ("favor the queue") is a real, consistently-applied
+  convention, but it exists only as repeated log narrative in
+  `plan/AUDIT.md` — it was never written into `skills/iterate.md`
+  §3 as an actual rule, so nobody can inspect or challenge it as
+  policy, and it has no aging counter-pressure. Signal A (fresh
+  instance), 2026-09-05: two more AUDIT-native rows are now
+  living examples of the same starvation, older than the
+  original evidence — `[C, 2.4]` (`triage.md`'s dead
+  `ship-data.md §6` citation) first appeared 2026-08-02 and
+  `[A, 2.4]` (`templates/claude/hooks/guard.mjs` drifted from
+  the kit's own hardening) first appeared ~2026-08-24; both have
+  been reproduced unchanged and left Pending across at least
+  seven intervening ticks (2026-08-25 through 2026-09-04) each
+  time a `plan/CRITIQUE.md` row was in contention, per
+  `plan/AUDIT.md`'s own tie-break log lines — 34 and 12 days
+  unshipped respectively, longer than the original `[A/E, 2.7]`
+  row ever waited before this candidate was first filed.
+- rationale: a one-line, ease-9 fix sitting seven-plus days
+  unshipped purely because of an unwritten scoring convention is
+  exactly the "starved queue" pattern `skills/digest.md` §3 step 4
+  names as a tuning trigger — not because the fix is hard, risky, or
+  actually low-value. That two independent rows have now each
+  waited over a week (one over a month) confirms this isn't a
+  one-off tie but a standing structural bias in favor of the
+  CRITIQUE queue.
+- proposed scope: write the "favor the queue on ties" convention
+  explicitly into `skills/iterate.md` §3 as an inspectable rule,
+  paired with a small aging nudge (e.g. `+0.1` per tick an AUDIT
+  row is passed over on a tie, capped) so a persistently-tied
+  cheap row eventually wins instead of losing indefinitely.
+- estimated phases: 1 (doc/rule-only, no template API change)
+- conflicts: none.
+
+### [rejected 2026-10-26: resolved by the /oversight tidy that moved the promoted rows out of Pending] [score 3.5] pulse.mjs's candidate-pending count still includes the four `[promoted]`-tagged rows never relocated out of `## Pending`
+- proposed: 2026-09-29 (digest)
+- source signals: today's pulse read "29 pending, oldest 90d,"
+  and this digest's own hand-count (per `skills/digest.md` §3
+  step 2/4) put 22 of those over the 21-day silting threshold.
+  But this file's `## Pending` section (lines 12-1025) actually
+  contains only 25 genuine `### [ ]` rows — four of the 29
+  `### ` headers `pulse.mjs` walks are `[promoted 2026-08-23 →
+  phase N]` rows (phases 19/20/21/22) that the 2026-08-23
+  `/oversight` note explicitly says stay "under Pending above
+  with relabeled `[promoted …]` headers, so their evidence
+  trails survive intact" — a deliberate choice, but
+  `scripts/pulse.mjs`'s `countRows()` (`/^### /` — any header)
+  and its `proposedDates` extraction (any `- proposed:` line in
+  the section) don't distinguish `[ ]` from `[promoted …]`, so
+  both the pending-count and the >21d/oldest aging numbers
+  double-count already-shipped work as still-pending. This exact
+  gap was already named as a known loose end in phase 30's own
+  brief (`plan/phases/phase_30_candidate_aging_silt_guard.md`
+  Non-goals: "Not fixing the pre-existing `[promoted]`-tag
+  filing drift... inflating `pulse.mjs`'s mechanical count by
+  4. Out of scope for this phase; already on record as a loose
+  end, not a duplicate candidate") but has sat unfiled as an
+  actual candidate for 37 days since — surfaced in past
+  `plan/DIGEST.md` snapshots (overwritten nightly, so never
+  durable) but never promoted into this queue until now.
+- rationale: phase 30 built the "oversight needed: candidate
+  queue silting" alarm specifically so a human doesn't have to
+  notice queue rot by hand — but the alarm's own inputs are
+  currently off by a consistent +4 on both the count and the
+  >21d tally (25 real pending vs. 29 reported; 18 real >21d vs.
+  22 reported), which could either cry wolf on a queue that's
+  milder than reported, or — if the drift grows past four rows —
+  mask real staleness the same way title-only crash-alarm
+  dedupe does (see the score-4.5 candidate above). The true
+  oldest-pending figure (2026-07-02, ~90d) happens to be
+  unaffected since a genuine `[ ]` row shares that date, but the
+  count itself is provably wrong today, not hypothetically.
+  Cheap to fix, already root-caused, already scoped by phase
+  30's own brief as a fair follow-up.
+- proposed scope: teach `scripts/pulse.mjs`'s `pendingSection`
+  consumers (`countRows()` and the `proposedDates` map/filter in
+  the candidates block) to skip any header matching
+  `/^### \[promoted/` — or, simpler, physically relocate the
+  four `[promoted 2026-08-23 → phase 19/20/21/22]` rows from
+  `## Pending` to `## Promoted` now (their evidence trails
+  already live in the `## Promoted` section's 2026-08-23 summary
+  note, so moving the full rows loses nothing) and add a one-line
+  note to `skills/expand.md` or `skills/oversight.md` that
+  promoted rows must relocate, not just relabel, going forward.
+  Either half closes the gap; doing both is more robust.
+- estimated phases: 1
+- conflicts: none.
