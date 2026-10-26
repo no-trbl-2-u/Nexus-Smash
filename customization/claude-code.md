@@ -137,6 +137,17 @@ Rules that matter:
    `mktemp`, …) for exactly this reason; when a prompt
    surprises you on an allowlisted command, look for the
    un-allowed half of the chain.
+7. **The worktree folder is in reach.** `/next` builds in a
+   sibling worktree (`../<PROJECT_LOWER>-wt/<id>`), outside the
+   checkout Claude Code was started in. The template lists it
+   under `additionalDirectories`; without it every read, edit
+   and builder there prompts, and an unattended tick stops at
+   the build.
+8. **An untrusted folder ignores the allow list.** Claude Code
+   drops `permissions.allow` from a project it has not been
+   trusted in (it says so on stderr: "this workspace has not
+   been trusted"). Open Claude Code in the checkout once and
+   accept the trust prompt before the first headless tick.
 
 **The cloud posture is different.** On a CI runner there is
 no human to approve, so default mode doesn't degrade to
@@ -436,6 +447,8 @@ claude -p "/march" --permission-mode acceptEdits
 - The permission allowlist (§1) and hooks (§2) apply the same
   as interactive — this is why the allowlist matters more than
   any bypass flag.
+- Trust the folder first (§1 rule 8): a checkout Claude Code
+  has never been opened in runs with its allow list ignored.
 - Schedule it with Task Scheduler (Windows), launchd (macOS),
   or cron (Linux). Same cadence guidance as the cloud loop:
   every 3h is plenty, at a minute off :00; serialize runs (don't let tick N+1 start

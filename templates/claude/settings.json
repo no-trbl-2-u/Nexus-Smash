@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "additionalDirectories": ["../<PROJECT_LOWER>-wt"],
     "allow": [
       "Bash(git status:*)",
       "Bash(git add:*)",
