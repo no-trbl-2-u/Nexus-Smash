@@ -85,7 +85,7 @@ jobs:
     steps:
       - name: Checkout (full history for /march dispatch)
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # PAT (not GITHUB_TOKEN) so pushes land as the nexus
@@ -97,7 +97,7 @@ jobs:
       # install; the verify gate still runs bare:
       # node scripts/verify.mjs
       - name: Set up Node 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
@@ -172,7 +172,7 @@ jobs:
       # subscription shares one seven_day window. The newest reading
       # any march or night run cached comes back first.
       - name: Quota cache restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}
@@ -204,7 +204,7 @@ jobs:
       # anyway; dispatch, nudge and chain runs never skip. Fails open.
       - name: Idle cache restore
         if: steps.ceiling.outputs.skip != 'true' && steps.quota_gate.outputs.skip != 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/idle.json
           key: nexus-idle-${{ github.run_id }}
@@ -244,7 +244,7 @@ jobs:
       # only on a tick that installs (a skipped tick saves nothing).
       - name: CLI npm cache
         if: steps.ceiling.outputs.skip != 'true' && steps.quota_gate.outputs.skip != 'true' && steps.idle.outputs.skip != 'true' && (vars.NEXUS_CLI_GATE || '1') == '1'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: nexus-cli-npm-${{ hashFiles('packages/cli/package-lock.json') }}
@@ -406,7 +406,7 @@ jobs:
       # commit; a tick that did not walk uploads nothing.
       - name: Upload the walk
         if: always() && steps.cli_build.outcome == 'success'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: walk-${{ github.run_id }}
           path: .scratch/walk/**
@@ -469,7 +469,7 @@ jobs:
 
       - name: Idle cache save
         if: always() && hashFiles('.nexus/idle.json') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/idle.json
           key: nexus-idle-${{ github.run_id }}-${{ github.run_attempt }}
@@ -500,7 +500,7 @@ jobs:
 
       - name: Quota cache save
         if: always() && steps.quota.outputs.quota != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}-${{ github.run_attempt }}

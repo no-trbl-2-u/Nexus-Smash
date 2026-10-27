@@ -92,7 +92,7 @@ jobs:
     steps:
       - name: Checkout (full history for /march dispatch)
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # Default: GITHUB_TOKEN (commits as github-actions[bot]).
@@ -189,7 +189,7 @@ jobs:
       # your Claude subscription shares one seven_day window. The
       # newest reading any march or night run cached comes back first.
       - name: Quota cache restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}
@@ -224,7 +224,7 @@ jobs:
       # never skip. Fails open.
       - name: Idle cache restore
         if: steps.ceiling.outputs.skip != 'true' && steps.quota_gate.outputs.skip != 'true'
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/idle.json
           key: nexus-idle-${{ github.run_id }}
@@ -367,7 +367,7 @@ jobs:
       # uploads and H rows cite the walk.json line. Never a commit.
       - name: Upload the UI walk
         if: always() && vars.NEXUS_UI_ARTIFACTS == '1' && steps.run_march.outcome != 'skipped'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: walk-${{ github.run_id }}
           path: .nexus/walk/**
@@ -415,7 +415,7 @@ jobs:
 
       - name: Idle cache save
         if: always() && hashFiles('.nexus/idle.json') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/idle.json
           key: nexus-idle-${{ github.run_id }}-${{ github.run_attempt }}
@@ -446,7 +446,7 @@ jobs:
 
       - name: Quota cache save
         if: always() && steps.quota.outputs.quota != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}-${{ github.run_attempt }}
@@ -534,11 +534,11 @@ jobs:
     outputs:
       id: ${{ steps.pick.outputs.id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -546,7 +546,7 @@ jobs:
       # nothing is built) while the weekly quota is out, or when a
       # scheduled or chained tick finds utilization at the soft cap.
       - name: Quota cache restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}
@@ -613,7 +613,7 @@ jobs:
       quota_resets: ${{ steps.quota.outputs.resets }}
       lost: ${{ steps.lost.outputs.lost }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -715,7 +715,7 @@ jobs:
 
       - name: Quota cache save
         if: always() && steps.quota.outputs.quota != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}-${{ github.run_attempt }}
@@ -748,7 +748,7 @@ jobs:
 
       - name: Hand the commits to the land job
         if: steps.bundle.outputs.commits != '0'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tick-${{ github.run_id }}
           path: ${{ runner.temp }}/tick.bundle
@@ -765,16 +765,16 @@ jobs:
     steps:
       # The default branch's checkout stays the working tree: every
       # script below is the default branch's copy, never the tick's.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tick-${{ github.run_id }}
           path: ${{ runner.temp }}/tick
@@ -794,7 +794,7 @@ jobs:
       - name: The loop's app token
         id: app
         if: vars.NEXUS_APP_ID != ''
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.NEXUS_APP_ID }}
           private-key: ${{ secrets.NEXUS_APP_PRIVATE_KEY }}
@@ -826,11 +826,11 @@ jobs:
       contents: write        # the claims branch
       issues: write          # the crash alarm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -872,9 +872,9 @@ jobs:
       contents: read
       issues: write          # the pause issue
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -900,11 +900,11 @@ jobs:
       contents: read         # the plan and the claims branch
       actions: write         # gh workflow run march.yml
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
