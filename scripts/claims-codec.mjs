@@ -223,8 +223,27 @@ export function parseBoard(text, where = '') {
     throw new Error(`claims: ${BOARD_FILE}${where ? ` at ${where}` : ''} can't be read (${why}); fix the branch, then retry.`);
   }
   if (!board || typeof board !== 'object' || !Array.isArray(board.entries)) throw new Error(`claims: ${BOARD_FILE}${where ? ` at ${where}` : ''} is not a board.`);
-  const seq = Number.isInteger(board.seq) ? board.seq : board.entries.reduce((n, e) => Math.max(n, Number(String(e.id).slice(1)) || 0), 0);
-  return { ...board, v: 1, seq };
+  const at = where ? ` at ${where}` : '';
+  if (board.v !== 1) throw new Error(`claims: ${BOARD_FILE}${at} is version ${board.v === undefined ? '(none)' : board.v}; this script reads version 1. Upgrade the kit, then retry.`);
+  for (const e of board.entries) if (!e || typeof e !== 'object' || typeof e.id !== 'string' || typeof e.text !== 'string') throw new Error(`claims: ${BOARD_FILE}${at} is not a board (an entry is malformed).`);
+  return { ...board, seq: seqOf(board) };
+}
+
+/** The last id handed out: never below an id already there, never negative, whatever `seq` says. */
+function seqOf(board) {
+  const top = board.entries.reduce((n, e) => Math.max(n, Number(/^b(\d+)$/.exec(String(e.id))?.[1]) || 0), 0);
+  return Math.max(0, Number.isInteger(board.seq) ? board.seq : 0, top);
+}
+
+/** How long to wait before retry number `i` (0-based) of a lost race: exponential from 100 ms, capped at 2 s, half of it jitter. */
+export function backoffMs(i, rand = Math.random) {
+  const cap = Math.min(2000, 100 * 2 ** i);
+  return Math.floor(cap / 2 + (rand() * cap) / 2);
+}
+
+/** Whether an entry belongs to `chunk`: its own, or one a duplicate of it came from. */
+export function inChunk(e, chunk) {
+  return e.chunk === chunk || Boolean(e.chunks?.includes(chunk));
 }
 
 const squash = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
@@ -249,7 +268,8 @@ export function dedupKey(text) {
   const error = (ERROR_CLASS.exec(s)?.[0] ?? '').toLowerCase();
   const name = /\bnot ok \d+ - (.+?)(?:\s+[(#]|$)/.exec(s)?.[1] ?? /\b(?:test|it)\s+(["'])(.+?)\1/i.exec(s)?.[2] ?? '';
   const parts = [file, symbol, error, normalize(name)].filter(Boolean);
-  return parts.length > 1 ? parts.join('|') : null;
+  // A file and an error class alone is too coarse (two different TypeErrors in one file): a symbol or a test name must name it.
+  return symbol || name ? parts.join('|') : null;
 }
 
 /** Why a note may not be written, or null: its type, chunk, author, session, and the caps. `text` is judged collapsed to one line. */
@@ -261,7 +281,8 @@ export function noteProblem(n) {
   if (!squash(n.session)) return 'session is empty: a note names its session.';
   const text = squash(n.text);
   if (!text) return 'text is empty.';
-  if (text.length > capOf(n.type)) return `text is ${text.length} characters; the ${n.type} cap is ${capOf(n.type)} (put the rest in --detail).`;
+  const length = [...text].length;
+  if (length > capOf(n.type)) return `text is ${length} characters;the ${n.type} cap is ${capOf(n.type)} (put the rest in --detail).`;
   return null;
 }
 
@@ -279,7 +300,8 @@ export function live(entries) {
 /**
  * Write one note into `board` at `now`: { board (a new one), entry, outcome }. Throws when the note is refused.
  *   duplicate  a FACT, OBSERVED or FAIL with the same normalized text (a FAIL also with the same dedup key) bumps the
- *              first entry's `count`; the first entry, its author and its time stay.
+ *              first entry's `count`; the first entry, its author and its time stay. It spans chunks: a duplicate from
+ *              another chunk adds that chunk to the entry's `chunks`, and one found by key keeps its wording in `detail`.
  *   replaced   a PATCH replaces its session's live PATCH for the same chunk (`replaces` names it); a PATCH never dedups.
  *   added      anything else.
  * A FAIL, added or a duplicate, marks the chunk's latest live PATCH `invalidated` (once), and a new one names it in
@@ -295,9 +317,13 @@ export function addNote(board, n, now) {
   const dup = n.type === 'PATCH' ? null : entries.find((e) => e.type === n.type && (normalize(e.text) === sameText || (key && dedupKey(e.text) === key)));
   let entry;
   let outcome;
-  let seq = board.seq;
+  let seq = seqOf(board);
   if (dup) {
     dup.count = (dup.count ?? 1) + 1;
+    // Dedup spans chunks: the entry remembers every chunk its duplicates came from, so a per-chunk reader still finds it.
+    if (n.chunk !== dup.chunk && !dup.chunks?.includes(n.chunk)) dup.chunks = [...(dup.chunks ?? [dup.chunk]), n.chunk];
+    // A duplicate found by key, not by text, keeps its own wording in the detail.
+    if (normalize(dup.text) !== sameText) dup.detail = `${dup.detail ? `${dup.detail}\n` : ''}${text}`;
     if (n.detail && !dup.detail) dup.detail = n.detail;
     entry = dup;
     outcome = 'duplicate';

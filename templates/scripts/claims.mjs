@@ -45,7 +45,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { pendingArchiveLines, pendingAtRef } from './plan/pending.mjs';
 import { isOwner, primaryRoot } from './owner.mjs';
-import { BOARD_FILE, BRANCH, CHUNK_ID as ID, FILE, PRIVILEGED, STAR, TTL_MS, addNote, claimInto, decide, emptyBoard, format, idsProblem, mine, noteProblem, parse, parseBoard, pushRefusal, readMap, releaseFrom, renewIn, serialize, serializeBoard, state } from './claims-codec.mjs';
+import { BOARD_FILE, BRANCH, backoffMs, CHUNK_ID as ID, FILE, PRIVILEGED, STAR, TTL_MS, addNote, claimInto, decide, emptyBoard, format, idsProblem, mine, noteProblem, parse, parseBoard, pushRefusal, readMap, releaseFrom, renewIn, serialize, serializeBoard, state } from './claims-codec.mjs';
 
 export { BRANCH, FILE, PRIVILEGED, TTL_MS, decide, format, mine, parse, state };
 export const TRIES = 8;
@@ -293,7 +293,7 @@ export function updateBoard(cwd, change, { remote = remoteOf(), tries = TRIES } 
     const out = change(board);
     if (!out) return { written: false, tries: i + 1 };
     if (pushFile(cwd, tip, BOARD_FILE, serializeBoard(out.board), out.message, remote)) return { written: true, tries: i + 1, ...out };
-    pause(100 + Math.floor(Math.random() * 400));
+    pause(backoffMs(i));
   }
   throw new Error(`claims: ${remote}'s ${BRANCH} kept moving; ${tries} tries lost the race. Run it again.`);
 }
@@ -328,7 +328,7 @@ export function update(cwd, change, { remote = remoteOf(), tries = TRIES } = {})
     const out = change({ ...map });
     if (!out) return { written: false };
     if (pushClaims(cwd, tip, out.map, out.message, remote)) return { written: true, ...out };
-    pause(100 + Math.floor(Math.random() * 400));
+    pause(backoffMs(i));
   }
   throw new Error(`claims: ${remote}'s ${BRANCH} kept moving; ${tries} tries lost the race. Run it again.`);
 }

@@ -190,7 +190,7 @@ describe('A1 through origin', () => {
 
   it('concurrent writers in separate processes each land their note', async () => {
     postNote(a, note('FACT', 'seed so the branch exists'));
-    const writers = ['p1', 'p2', 'p3'].map((name) => {
+    const writers = ['p1', 'p2', 'p3', 'p4', 'p5'].map((name) => {
       const wd = clone(name);
       const code = `import { postNote } from ${JSON.stringify(CLAIMS)}; const r = postNote(process.cwd(), { type: 'FACT', chunk: '62.1', by: ${JSON.stringify(name)}, session: ${JSON.stringify(name)}, text: ${JSON.stringify(`fact from ${name}`)} }); console.log(JSON.stringify(r));`;
       return new Promise((resolve, reject) => {
@@ -203,10 +203,10 @@ describe('A1 through origin', () => {
       });
     });
     const results = await Promise.all(writers);
-    assert.equal(results.length, 3);
+    assert.equal(results.length, 5);
     const { entries } = onOrigin(a);
-    assert.deepEqual(entries.map((e) => e.text).sort(), ['fact from p1', 'fact from p2', 'fact from p3', 'seed so the branch exists']);
-    assert.equal(new Set(entries.map((e) => e.id)).size, 4, 'no id was handed out twice');
+    assert.deepEqual(entries.map((e) => e.text).sort(), ['fact from p1', 'fact from p2', 'fact from p3', 'fact from p4', 'fact from p5', 'seed so the branch exists']);
+    assert.equal(new Set(entries.map((e) => e.id)).size, 6, 'no id was handed out twice');
   });
 
   it('refuses to write over a board.json it cannot read, rather than wiping it', () => {

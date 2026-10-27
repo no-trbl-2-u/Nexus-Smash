@@ -158,7 +158,24 @@ describe('dedup', () => {
       assert.equal(codec.dedupKey('TypeError somewhere'), null);
     });
     it('ignores a line and column, so the same failure moved down a line is the same failure', () => {
-      assert.equal(codec.dedupKey('TypeError at scripts/a.mjs:10:3'), codec.dedupKey('TypeError at scripts/a.mjs:12:9'));
+      assert.equal(codec.dedupKey('TypeError in `foo` at scripts/a.mjs:10:3'), codec.dedupKey('TypeError in `foo` at scripts/a.mjs:12:9'));
+    });
+    it('needs a symbol or a test name beside the file: a file and an error class alone is null', () => {
+      assert.equal(codec.dedupKey('TypeError at scripts/a.mjs:10:3'), null);
+      assert.equal(codec.dedupKey('RangeError in scripts/a.mjs'), null);
+    });
+    it('keeps the second wording: a keyed duplicate appends its text to the detail', () => {
+      const { board } = fold([
+        note('FAIL', 'TypeError in scripts/a.mjs: `foo` is not a function', { session: 's1' }),
+        note('FAIL', '`foo` threw a TypeError (scripts/a.mjs:99:1)', { session: 's2', by: 'sam' }),
+      ]);
+      assert.equal(board.entries.length, 1);
+      assert.equal(board.entries[0].count, 2);
+      assert.match(board.entries[0].detail, /`foo` threw a TypeError \(scripts\/a\.mjs:99:1\)/);
+    });
+    it('two different TypeErrors in one file with no symbol stay two entries', () => {
+      const { board } = fold([note('FAIL', 'TypeError: x is undefined in scripts/a.mjs'), note('FAIL', 'TypeError: y is null in scripts/a.mjs')]);
+      assert.equal(board.entries.length, 2);
     });
     it('folds two FAILs worded differently into one (x2)', () => {
       const { board } = fold([
@@ -253,6 +270,48 @@ describe('a FAIL naming the chunk', () => {
     assert.equal(board.entries[0].invalidated, true);
     assert.equal(board.entries[2].invalidated, undefined);
     assert.deepEqual(codec.live(board.entries).map((e) => e.id), ['b2', 'b3']);
+  });
+});
+
+describe('review findings', () => {
+  it('ids never repeat when seq is low, missing or negative', () => {
+    const entries = [{ id: 'b1', type: 'FACT', chunk: '62.1', by: 'a', session: 's', at: 'x', text: 'one' }, { id: 'b2', type: 'FACT', chunk: '62.1', by: 'a', session: 's', at: 'x', text: 'two' }];
+    for (const seq of [0, -4, undefined, 1.5]) {
+      const parsed = codec.parseBoard(JSON.stringify({ v: 1, seq, entries }));
+      assert.equal(parsed.seq, 2);
+      assert.equal(codec.addNote({ v: 1, seq, entries }, note('FACT', 'three'), T0).entry.id, 'b3');
+    }
+    assert.equal(codec.parseBoard('{"v":1,"seq":-3,"entries":[]}').seq, 0);
+  });
+  it('dedup spans chunks and records every chunk on the entry', () => {
+    const { board, outs } = fold([note('FACT', 'same fact'), note('FACT', 'same fact', { chunk: '70.2', session: 's2' })]);
+    assert.equal(board.entries.length, 1);
+    assert.equal(outs[1].outcome, 'duplicate');
+    assert.deepEqual(board.entries[0].chunks, ['62.1', '70.2']);
+    assert.equal(codec.inChunk(board.entries[0], '70.2'), true);
+    assert.equal(codec.inChunk(board.entries[0], '62.1'), true);
+    assert.equal(codec.inChunk(board.entries[0], '71.1'), false);
+    const same = fold([note('FACT', 'x'), note('FACT', 'x')]).board.entries[0];
+    assert.equal(same.chunks, undefined, 'one chunk adds nothing');
+  });
+  it('caps count code points, not UTF-16 units', () => {
+    assert.equal(codec.noteProblem(note('FACT', '😀'.repeat(100))), null);
+    assert.match(codec.noteProblem(note('FACT', '😀'.repeat(101))), /101 characters/);
+  });
+  it('an unknown v throws instead of being rewritten', () => {
+    assert.throws(() => codec.parseBoard('{"v":2,"seq":0,"entries":[]}'), /version 2/);
+    assert.throws(() => codec.parseBoard('{"seq":0,"entries":[]}'), /version/);
+  });
+  it('a malformed entry is "not a board", never a raw TypeError', () => {
+    for (const entries of [[null], [1], ['x'], [{}], [{ id: 5 }]]) assert.throws(() => codec.parseBoard(JSON.stringify({ v: 1, seq: 0, entries })), /is not a board/);
+  });
+  it('backoff grows, is capped, and jitters', () => {
+    const lo = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => codec.backoffMs(i, () => 0));
+    const hi = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => codec.backoffMs(i, () => 0.999));
+    for (let i = 1; i < 5; i++) assert.ok(lo[i] > lo[i - 1], 'grows');
+    assert.ok(Math.max(...hi) <= 2000, 'capped');
+    assert.ok(hi[0] > lo[0], 'jitters');
+    assert.ok(hi.reduce((a, b) => a + b) < 12_000, 'total wall time stays bounded');
   });
 });
 
