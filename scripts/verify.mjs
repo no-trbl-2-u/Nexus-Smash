@@ -137,6 +137,14 @@
 //                 rose, or one that fell while the list stayed is
 //                 red (lower it with node scripts/kit-id.mjs refs
 //                 --write), so the list only moves down
+//   surface       the editable surface (spec 64, surface.json): a
+//                 commit whose subject starts refine: or lessons:
+//                 in origin/main..HEAD (HEAD alone when empty)
+//                 fails when it touches a denied or unlisted path,
+//                 a bearings section the list does not name, or
+//                 adds more characters to a file than its cap; a
+//                 briefed chunk's commit is not inspected
+//                 (scripts/surface.mjs)
 //   scripts-git   opt-in — the same scripts end to end in scratch git
 //                 repos in the temp folder (offline, but every case
 //                 spawns git, so tens of seconds), and heartbeat.yml's
@@ -992,6 +1000,7 @@ const PURE_SUITES = [
   'scripts/__tests__/release-reply.test.mjs',
   'scripts/__tests__/kit-id.test.mjs',
   'scripts/__tests__/adopt-check.test.mjs',
+  'scripts/__tests__/surface.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
@@ -1011,6 +1020,7 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
   'scripts/__tests__/improve.test.mjs',
+  'scripts/__tests__/surface-run.test.mjs',
 ]
 
 // nexus runs these scripts on its own plan (npm run settle, npm run
@@ -1346,6 +1356,20 @@ function legAdoptDryrun() {
   }
 }
 
+// --- leg: surface ------------------------------------------------------------
+// Spec 64: surface.json names what a refine: or lessons: commit may edit
+// about the loop itself. The leg walks origin/main..HEAD (HEAD alone when
+// that is empty) and fails a surface-bound commit that touches a denied or
+// unlisted path or goes over a cap; a briefed chunk's commit is not inspected.
+
+async function legSurface() {
+  const { loadSurface, checkRange } = await import(pathToFileURL(path.join(ROOT, 'scripts/surface.mjs')).href)
+  const { surface, problems } = loadSurface(ROOT)
+  if (!surface) return { failures: problems, note: 'see failures' }
+  const res = checkRange(ROOT, surface)
+  return { failures: res.failures, note: `${res.checked} commit(s) walked, ${res.bound} refine:/lessons: checked against surface.json` }
+}
+
 // --- leg: design -------------------------------------------------------------
 // Opt-in, like adopt-dryrun: the handoff and its port map change only
 // with a delivery or a port, so the default pass skips the hashing.
@@ -1380,6 +1404,7 @@ const LEGS = {
   upgrade: () => legUpgrade(),
   'state-size': () => legStateSize(),
   kit: () => legKit(),
+  surface: () => legSurface(),
   'scripts-git': () => runSuites(GIT_SUITES, 'end-to-end'),
   'adopt-dryrun': () => legAdoptDryrun(),
   design: () => legDesign(),
