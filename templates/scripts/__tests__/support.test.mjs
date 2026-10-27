@@ -593,13 +593,13 @@ describe('route shows the repo it read and refuses pull requests', () => {
   };
   it('parses the repo from repository_url or html_url', () => {
     assert.equal(ghIssue(3, { run: () => reply({ repository_url: 'https://api.github.com/repos/no-trbl-2-u/Nexus-Smash' }) }).repo, 'no-trbl-2-u/Nexus-Smash');
-    assert.equal(ghIssue(3, { run: () => reply({ html_url: 'https://github.com/daretodave/nexus/issues/3' }) }).repo, 'daretodave/nexus');
+    assert.equal(ghIssue(3, { run: () => reply({ html_url: 'https://github.com/another-owner/another-repo/issues/3' }) }).repo, 'another-owner/another-repo');
   });
   it('prints another repo in the decision line', async () => {
     const out = [];
-    const gh = (n) => ghIssue(n, { run: () => reply({ html_url: 'https://github.com/daretodave/nexus/issues/3' }) });
+    const gh = (n) => ghIssue(n, { run: () => reply({ html_url: 'https://github.com/another-owner/another-repo/issues/3' }) });
     assert.equal(await main(['route', '3', '--kind', 'bug'], { root: root(), env: {}, log: (l) => out.push(l), gh }), 0);
-    assert.match(out[0], /^bug #3 \(daretodave\/nexus\) · /);
+    assert.match(out[0], /^bug #3 \(another-owner\/another-repo\) · /);
   });
   it('refuses a pull request without routing it', async () => {
     const out = [];
