@@ -50,7 +50,7 @@ test('writing replaces the one line in place and touches no other', () => {
   assert.equal(after, before.replace('Improve: gentle', 'Improve: bold'));
   assert.equal(withPosition(after, 'bold'), after, 'the same value is a no-op');
   const bullet = `${HEAD}## Plan expansion posture\n\n- Improve: **gentle** # note\n- Promote: aged\n${TAIL}`;
-  assert.equal(withPosition(bullet, 'steady'), bullet.replace('- Improve: **gentle** # note', '- Improve: steady'), 'a bullet keeps its bullet');
+  assert.equal(withPosition(bullet, 'steady'), bullet.replace('gentle', 'steady'), 'only the value changes: bullet, bold marks and note stay');
 });
 
 test('writing with the line absent adds it under the heading as its own paragraph', () => {
@@ -85,6 +85,20 @@ test('CRLF files stay CRLF, with and without the line, and a BOM stays', () => {
 
   const bom = `﻿${HEAD}${POSTURE}${TAIL}`;
   assert.ok(withPosition(bom, 'off').startsWith(`﻿# Bearings`));
+});
+
+test('a read-only plan/bearings.md is a clear 409 and leaves no temp file', (t) => {
+  const dir = tmpRepo(HEAD + POSTURE + TAIL);
+  const file = path.join(dir, 'plan', 'bearings.md');
+  try {
+    fs.chmodSync(file, 0o444);
+    try { fs.accessSync(file, fs.constants.W_OK); return t.skip('this platform lets the file be written anyway'); } catch { /* read-only */ }
+    const r = writeImprove(dir, { position: 'bold' });
+    assert.equal(r.status, 409);
+    assert.match(r.error, /plan\/bearings\.md is read-only/);
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'plan')), ['bearings.md'], 'no temp file left');
+    assert.equal(fs.readFileSync(file, 'utf8'), HEAD + POSTURE + TAIL);
+  } finally { try { fs.chmodSync(file, 0o644); } catch { /* gone */ } removeTreeSync(dir); }
 });
 
 test('a position the dial does not have is refused', () => {
@@ -128,12 +142,40 @@ test('readImprove and writeImprove on a checkout: absent file reads gentle and w
   }
 });
 
+const SEC = '## Plan expansion posture\n\n';
+const EDGE = [
+  `${HEAD}${SEC}prose
+
+    Improve: bold
+
+${TAIL}`, // an indented code block
+  `${HEAD}${SEC}Improve: bold <!-- x -->
+
+${TAIL}`,
+  `${HEAD}${SEC}<!-- c --> Improve: bold
+
+${TAIL}`,
+  `${HEAD}${SEC}<!-- opened
+Improve: bold
+closes --> Improve: steady
+
+${TAIL}`,
+  `${HEAD}${SEC}prose\r\rImprove: bold\r\r${TAIL}`, // a lone CR
+  `${HEAD}${SEC}- item
+
+    Improve: bold
+
+    Improve: off
+
+${TAIL}`,
+];
+
 test('the parse agrees with the repo\'s own resolver (scripts/plan/improve.mjs) when the CLI sits in the kit', async (t) => {
   const url = new URL('../../../scripts/plan/improve.mjs', import.meta.url);
   if (!fs.existsSync(url)) return t.skip('the kit\'s scripts are not beside this package');
   const { dial } = await import(url.href);
   const cases = [HEAD + POSTURE + TAIL, `${HEAD}${POSTURE.replace('- Promote', 'Improve: steady\n- Promote')}${TAIL}`, `${HEAD}Improve: bold\n\n${POSTURE}${TAIL}`,
-    `${HEAD}${POSTURE}\`\`\`\nImprove: bold\n\`\`\`\n${TAIL}`, crlf(`${HEAD}## Plan expansion posture\n\n- Improve: off\n\n${TAIL}`)];
+    `${HEAD}${POSTURE}\`\`\`\nImprove: bold\n\`\`\`\n${TAIL}`, crlf(`${HEAD}## Plan expansion posture\n\n- Improve: off\n\n${TAIL}`), ...EDGE];
   for (const c of cases) {
     const want = dial(c);
     assert.deepEqual(readPosition(c), { position: want.position, set: want.set });
