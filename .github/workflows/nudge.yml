@@ -63,7 +63,7 @@ jobs:
       issues: read
     steps:
       - name: Checkout (the nudge's script only)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
           sparse-checkout: |

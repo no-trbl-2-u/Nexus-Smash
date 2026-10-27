@@ -949,6 +949,8 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/pending.test.mjs',
   'templates/scripts/__tests__/settle.test.mjs',
   'templates/scripts/__tests__/claims-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
   'templates/scripts/__tests__/claims-board.test.mjs',
   'templates/scripts/__tests__/push-policy.test.mjs',
   'templates/scripts/__tests__/progress.test.mjs',
@@ -1006,6 +1008,7 @@ const PURE_SUITES = [
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
   'templates/scripts/__tests__/claims.test.mjs',
+  'templates/scripts/__tests__/claims-board-write.test.mjs',
   'templates/scripts/__tests__/push-policy-hook.test.mjs',
   'templates/scripts/__tests__/install-hooks-run.test.mjs',
   'templates/scripts/__tests__/worktree.test.mjs',
@@ -1132,8 +1135,35 @@ async function legWorkflows() {
   const failures = problems.map((p) => { const m = /^(.*?\.ya?ml)(:.*)$/s.exec(p); return m ? normalize(path.relative(ROOT, m[1])) + m[2] : p })
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
+  failures.push(...nodeActionMajorsCheck())
   failures.push(...prFlowCheck())
-  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...judgeCheck())
+  return { failures, note: `judge.yml runs on pull_request with no secret and writes the step summary; pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// Spec 61 (A2): the judge job runs a pull request's own code, so nothing a secret could reach is in its
+// workflow. .github/workflows/judge.yml triggers on pull_request (never pull_request_target), holds a read-only
+// token, references no secret or token context, and the script it runs writes $GITHUB_STEP_SUMMARY.
+function judgeCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROOT, f))) {
+  const file = '.github/workflows/judge.yml'
+  if (!exists(file)) return [`${file}: missing (the judge job proves a PR's acceptance IDs; spec 61)`]
+  // Comments explain the rules in the words that would trip them, so the checks read code only.
+  const code = readFile(file).replace(/\r\n/g, '\n').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
+  const failures = []
+  if (/\bpull_request_target\b/.test(code)) failures.push(`${file}: uses pull_request_target (the judge runs the PR's code: pull_request only)`)
+  const on = /^on:[ \t]*([^\n#]*)\n?((?:[ \t]+[^\n]*\n|[ \t]*\n)*)/m.exec(code + '\n')
+  const inline = on ? on[1].trim() : ''
+  const triggers = !on ? [] : inline ? inline.replace(/^\[|\]$/g, '').split(',').map((t) => t.trim()) : [...on[2].matchAll(/^([ \t]+)([\w-]+):/gm)].filter((m, _, all) => m[1].length === Math.min(...all.map((x) => x[1].length))).map((m) => m[2])
+  if (triggers.length !== 1 || triggers[0] !== 'pull_request') failures.push(`${file}: on: must be exactly pull_request (found ${triggers.join(', ') || 'nothing'})`)
+  // Every expression in the raw text, comments and run blocks included: the runner expands one wherever it sits.
+  const exprs = [...readFile(file).matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((m) => m[1])
+  if (exprs.some((e) => /\bsecrets\b|github\s*(\.|\[)\s*['"]?token|toJSON\(\s*github\b/i.test(e)) || /\bsecrets\s*:/.test(code)) failures.push(`${file}: references a secret or the token (no repository secret may reach the judge)`)
+  if (!/^permissions:\s*\n\s+contents:\s*read\s*$/m.test(code) || /:\s*write\b/.test(code)) failures.push(`${file}: permissions must be exactly contents: read`)
+  if (!/persist-credentials:\s*false/.test(code)) failures.push(`${file}: checkout keeps the token in the clone (persist-credentials: false)`)
+  if (!/scripts\/pr\/acceptance\.mjs/.test(code)) failures.push(`${file}: does not run scripts/pr/acceptance.mjs`)
+  const script = exists('scripts/pr/acceptance.mjs') ? readFile('scripts/pr/acceptance.mjs') : ''
+  if (!script.includes('GITHUB_STEP_SUMMARY')) failures.push('scripts/pr/acceptance.mjs: does not write $GITHUB_STEP_SUMMARY (one row per A-ID)')
+  return failures
 }
 
 // Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.
@@ -1152,6 +1182,40 @@ function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(RO
     if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
   }
   if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
+  return failures
+}
+
+// 39.11 (A12): no workflow or composite action pins a first-party
+// action on a Node 20 major. GitHub is retiring the Node 20 runtime,
+// and every run of an old major warns that it targets it. Each entry
+// is the oldest major whose action.yml says `using: node24`
+// (checked against the action's repo); a sub-path such as
+// cache/restore counts as its action; a quoted uses: counts and a
+// commented line does not. pnpm/action-setup is held too: its v4
+// is Node 20.
+const NODE24_MAJORS = {
+  'actions/checkout': 5,
+  'actions/setup-node': 5,
+  'actions/cache': 5,
+  'actions/upload-artifact': 6,
+  'actions/download-artifact': 7,
+  'actions/create-github-app-token': 3,
+  'pnpm/action-setup': 5,
+}
+function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.github/actions', 'templates/.github/workflows', 'templates/.github/actions']) {
+  const failures = []
+  for (const dir of dirs) {
+    const abs = path.join(ROOT, dir)
+    if (!fs.existsSync(abs)) continue
+    for (const file of walkFiles(abs).filter((f) => /\.ya?ml$/.test(f))) {
+      const rel = normalize(path.relative(ROOT, file))
+      readFile(rel).split(/\r?\n/).forEach((line, i) => {
+        if (/^\s*#/.test(line)) return
+        const m = /\buses:\s*["']?([\w.-]+\/[\w.-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
+        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: ${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
+      })
+    }
+  }
   return failures
 }
 
