@@ -1137,7 +1137,33 @@ async function legWorkflows() {
   failures.push(...nudgeCheck())
   failures.push(...nodeActionMajorsCheck())
   failures.push(...prFlowCheck())
-  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...judgeCheck())
+  return { failures, note: `judge.yml runs on pull_request with no secret and writes the step summary; pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// Spec 61 (A2): the judge job runs a pull request's own code, so nothing a secret could reach is in its
+// workflow. .github/workflows/judge.yml triggers on pull_request (never pull_request_target), holds a read-only
+// token, references no secret or token context, and the script it runs writes $GITHUB_STEP_SUMMARY.
+function judgeCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROOT, f))) {
+  const file = '.github/workflows/judge.yml'
+  if (!exists(file)) return [`${file}: missing (the judge job proves a PR's acceptance IDs; spec 61)`]
+  // Comments explain the rules in the words that would trip them, so the checks read code only.
+  const code = readFile(file).replace(/\r\n/g, '\n').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
+  const failures = []
+  if (/\bpull_request_target\b/.test(code)) failures.push(`${file}: uses pull_request_target (the judge runs the PR's code: pull_request only)`)
+  const on = /^on:[ \t]*([^\n#]*)\n?((?:[ \t]+[^\n]*\n|[ \t]*\n)*)/m.exec(code + '\n')
+  const inline = on ? on[1].trim() : ''
+  const triggers = !on ? [] : inline ? inline.replace(/^\[|\]$/g, '').split(',').map((t) => t.trim()) : [...on[2].matchAll(/^([ \t]+)([\w-]+):/gm)].filter((m, _, all) => m[1].length === Math.min(...all.map((x) => x[1].length))).map((m) => m[2])
+  if (triggers.length !== 1 || triggers[0] !== 'pull_request') failures.push(`${file}: on: must be exactly pull_request (found ${triggers.join(', ') || 'nothing'})`)
+  // Every expression in the raw text, comments and run blocks included: the runner expands one wherever it sits.
+  const exprs = [...readFile(file).matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((m) => m[1])
+  if (exprs.some((e) => /\bsecrets\b|github\s*(\.|\[)\s*['"]?token|toJSON\(\s*github\b/i.test(e)) || /\bsecrets\s*:/.test(code)) failures.push(`${file}: references a secret or the token (no repository secret may reach the judge)`)
+  if (!/^permissions:\s*\n\s+contents:\s*read\s*$/m.test(code) || /:\s*write\b/.test(code)) failures.push(`${file}: permissions must be exactly contents: read`)
+  if (!/persist-credentials:\s*false/.test(code)) failures.push(`${file}: checkout keeps the token in the clone (persist-credentials: false)`)
+  if (!/scripts\/pr\/acceptance\.mjs/.test(code)) failures.push(`${file}: does not run scripts/pr/acceptance.mjs`)
+  const script = exists('scripts/pr/acceptance.mjs') ? readFile('scripts/pr/acceptance.mjs') : ''
+  if (!script.includes('GITHUB_STEP_SUMMARY')) failures.push('scripts/pr/acceptance.mjs: does not write $GITHUB_STEP_SUMMARY (one row per A-ID)')
+  return failures
 }
 
 // Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.

@@ -1,0 +1,58 @@
+name: judge
+run-name: judge PR ${{ github.event.pull_request.number }}
+
+# Spec 61: the check that proves a pull request's acceptance IDs
+# instead of trusting the branch's word. It checks out the PR head,
+# reads the `## Acceptance` lines of the PR body, runs each named
+# proof (`node --test <files>`), replays every test the PR adds on
+# the merge base, and writes one step-summary row per A-ID.
+# scripts/pr/acceptance.mjs holds the logic; this file only wires it.
+#
+# pull_request, never pull_request_target: the PR's own code runs
+# here, so nothing it could read is in reach. The token is
+# read-only and not persisted into the checkout, no repository
+# secret is referenced (verify's workflows leg fails the build if
+# one is), and the proofs run with an environment of PATH, HOME
+# and the temp dirs alone. The body is the PR author's text: it
+# crosses in an environment variable and is written to a file,
+# never interpolated into the script.
+#
+# The job is named `judge`: the merge step (spec 61.5) looks for a
+# check run of that name on the head sha.
+
+on:
+  pull_request:
+    # `edited` re-judges a body edit: the proof lines live there.
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: judge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  judge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The PR head itself (the default is the merge ref), with
+          # every commit so the merge base resolves.
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Judge the acceptance proofs
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          node scripts/pr/acceptance.mjs "$RUNNER_TEMP/pr-body.md" --base "$BASE_SHA" --root .
