@@ -117,9 +117,20 @@ export async function kitSource({ bundled = UPGRADE_BUNDLED, nexus = NEXUS_ROOT 
 const kitPath = (kit, f) => path.join(kit.root, ...f.kit.replace(/^templates\//, '').split('/'));
 const kitModule = (kit, rel) => import(pathToFileURL(path.join(kit.root, ...rel.split('/'))).href);
 
+/**
+ * The environment every git call here runs in: core.longpaths=true, so a checkout with long Windows paths is read as
+ * it is (git status would otherwise see those files as deleted, and `git add -A` would commit their deletion). The
+ * setting rides GIT_CONFIG_* rather than a config file because a linked worktree shares the user's own repo config,
+ * which the upgrade never writes.
+ */
+export function longPathsEnv(env = process.env) {
+  const n = Number.parseInt(env.GIT_CONFIG_COUNT, 10) || 0;
+  return { ...env, GIT_CONFIG_COUNT: String(n + 1), [`GIT_CONFIG_KEY_${n}`]: 'core.longpaths', [`GIT_CONFIG_VALUE_${n}`]: 'true' };
+}
+
 /** git in `cwd`, synchronously, never through a shell: { ok, out, err }. */
 export function gitIn(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: longPathsEnv() });
   return { ok: r.status === 0, out: (r.stdout || '').trim(), err: (r.stderr || r.error?.message || '').trim() };
 }
 
@@ -546,7 +557,7 @@ export function gate(dir, { node = process.execPath } = {}) {
  * the repo's before the upgrade: they become one warning, and the row is green when march.yml itself is clean.
  * Returns { row, warning }; a row that is not a lint failure, or has a problem in march.yml, is as it was.
  */
-export function scopeLint(row, { own = [MARCH_YML] } = {}) {
+export function scopeLint(row, { own = [MARCH_YML, SETUP_ACTION] } = {}) {
   if (row.name !== 'workflow-lint' || row.ok) return { row, warning: null };
   const problems = (row.all ?? row.out).split(/\r?\n/).filter((l) => /^\S+\.ya?ml: /.test(l));
   const mine = problems.filter((l) => own.some((f) => l.startsWith(`${f}: `)));
@@ -563,14 +574,38 @@ export function scopeLint(row, { own = [MARCH_YML] } = {}) {
  * A package that declares dependencies but has no node_modules in the worktree gets a skipped row (ok, `skipped`):
  * the command cannot run before an install, and the upgrade never installs on its own.
  */
-export function repoVerify(dir) {
+export function repoVerify(dir, { timeout = 600000 } = {}) {
   let pkg;
   try { pkg = JSON.parse(read(dir, 'package.json') || 'null'); } catch { return null; }
   if (typeof pkg?.scripts?.verify !== 'string') return null;
   const name = 'repo verify';
-  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
-  if (deps.length && !exists(dir, 'node_modules')) return { name, ok: true, skipped: true, out: 'scripts.verify needs an install first (npm ci); run it in the worktree' };
-  const r = spawnSync('npm run verify --silent', { cwd: dir, encoding: 'utf8', shell: true, windowsHide: true, timeout: 600000, maxBuffer: 64 * 1024 * 1024 });
+  const needsInstall = (d, p) => Object.keys({ ...p.dependencies, ...p.devDependencies }).length > 0 && !exists(d, 'node_modules');
+  const skip = (why) => ({ name, ok: true, skipped: true, out: `${why}; run it in the worktree after an install (npm ci)` });
+  if (needsInstall(dir, pkg)) return skip('scripts.verify needs an install first');
+  const ws = Array.isArray(pkg.workspaces) ? pkg.workspaces : pkg.workspaces?.packages;
+  if (ws?.length) {
+    if (!exists(dir, 'node_modules')) return skip('a workspaces repo with no node_modules');
+    for (const pat of ws) {
+      const star = pat.replace(/\/\*\*?$/, '');
+      const kids = pat === star ? [star] : (() => { try { return fs.readdirSync(path.join(dir, star)).map((n) => `${star}/${n}`); } catch { return []; } })();
+      for (const k of kids) {
+        let p; try { p = JSON.parse(read(dir, `${k}/package.json`) || 'null'); } catch { p = null; }
+        if (p && needsInstall(path.join(dir, k), p)) return skip(`workspace ${k} has no node_modules`);
+      }
+    }
+  }
+  // The repo's script gets a bare environment (no tokens), and a timeout kills the whole process tree: the wrapper
+  // owns the child, since spawnSync's own timeout would end only the shell and leave its children running.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(path|pathext|home|userprofile|systemroot|comspec|temp|tmp|tmpdir|appdata|localappdata|npm_config_.*)$/i.test(k)));
+  const wrapper = [
+    "const { spawn, spawnSync } = require('node:child_process');",
+    "const win = process.platform === 'win32';",
+    "const c = spawn('npm run verify --silent', { shell: true, stdio: 'inherit', windowsHide: true, detached: !win });",
+    "const kill = () => { if (win) spawnSync('taskkill', ['/pid', String(c.pid), '/T', '/F']); else { try { process.kill(-c.pid, 'SIGKILL'); } catch {} } };",
+    "const t = setTimeout(() => { kill(); console.error('repo verify timed out after ' + Math.round(" + timeout + " / 1000) + 's'); process.exit(124); }, " + timeout + ');',
+    "c.on('close', (code) => { clearTimeout(t); process.exit(code ?? 1); });",
+  ].join('\n');
+  const r = spawnSync(process.execPath, ['-e', wrapper], { cwd: dir, env, encoding: 'utf8', windowsHide: true, timeout: timeout + 30000, maxBuffer: 64 * 1024 * 1024 });
   const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
   return { name, ok: r.status === 0, out: out.split(/\r?\n/).slice(-20).join('\n') };
 }
@@ -894,8 +929,14 @@ export async function runUpgrade(argv, { out = (s) => process.stdout.write(`${s}
   if (bad.length || (i >= 0 && !argv[i + 1])) { err(`nexus upgrade: unknown argument ${bad[0] ?? '--repo (needs a folder)'}\n\n${UPGRADE_HELP}`); return 2; }
   const repo = path.resolve(cwd, i >= 0 ? argv[i + 1] : '.');
   // A folder wins; else a GitHub repo (owner/name or its URL) is cloned, no checkout needed.
-  const folder = fs.existsSync(repo) && fs.statSync(repo).isDirectory();
-  const gh = !folder && i >= 0 ? parseRepo(argv[i + 1]) : null;
+  // A folder that is a git repo wins; a folder that is not one never shadows an owner/name slug (it falls back to the
+  // slug); when both exist the folder is used and the command says so.
+  const isDir = fs.existsSync(repo) && fs.statSync(repo).isDirectory();
+  const slugged = i >= 0 ? parseRepo(argv[i + 1]) : null;
+  const isGit = isDir && gitIn(repo, ['rev-parse', '--git-dir']).ok;
+  const folder = isDir && (isGit || !slugged);
+  const gh = !folder && i >= 0 ? slugged : null;
+  if (isGit && slugged && !/^[a-z]+:|^git@/i.test(argv[i + 1]) && /^[^/\\]+\/[^/\\]+$/.test(argv[i + 1].trim())) err(`nexus upgrade: ${argv[i + 1]} is both a folder here and a GitHub repo; using the folder (pass https://github.com/${slugged.slug} for the repo)`);
   if (!folder && !gh) { err(`nexus upgrade: ${i >= 0 ? `${argv[i + 1]} is not a folder or a GitHub repo (owner/name or its URL)` : `${repo} is not a folder`}`); return 2; }
   const assist = argv.includes('--no-assist') ? null : (assistOf ? assistOf() : modelAssist());
   const { code, report } = await upgrade({ repo, remote: gh?.slug ?? null, today, keepWorkflow: argv.includes('--keep-workflow'), write: argv.includes('--write'), pr: argv.includes('--pr'), assist, ...seams });

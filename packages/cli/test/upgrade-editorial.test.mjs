@@ -9,7 +9,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { kitSource, upgrade, rewriteText, render, repoVerify, scopeLint } from '../server/upgrade.mjs';
+import { kitSource, upgrade, rewriteText, render, repoVerify, scopeLint, longPathsEnv, gitIn } from '../server/upgrade.mjs';
+import { SECRET } from '../server/workflow-merge.mjs';
 import { sections } from '../server/kit-text.mjs';
 import { editorialV1, marchYml, git, put, commit, state, PHASES } from './helpers/editorial-v1.mjs';
 
@@ -186,4 +187,48 @@ test('workflow-lint problems in workflows the upgrade did not change are a warni
   assert.equal(b.warning, null);
   assert.equal(scopeLint(lint(['workflow-lint crashed'])).row.ok, false, 'no parsable problem: stays red');
   assert.equal(scopeLint({ name: 'plan-check', ok: false, out: other }).row.ok, false);
+});
+
+test('a lint problem in the setup action the upgrade writes stays red; bracket-spelled secrets and tokens count as secrets', () => {
+  const action = '.github/actions/setup/action.yml: reads secrets in ${{ secrets.X }} (a composite action has no secrets context)';
+  const r = scopeLint({ name: 'workflow-lint', ok: false, out: action });
+  assert.equal(r.row.ok, false);
+  assert.equal(r.warning, null);
+  for (const s of ["${{ secrets['NPM_TOKEN'] }}", '${{ secrets["NPM_TOKEN"] }}', '${{ secrets.NPM_TOKEN }}', '${{ github.token }}', "${{ github['token'] }}", '${{ github [ "token" ] }}', "${{ toJSON(secrets) }}"]) assert.ok(SECRET.test(s), s);
+  for (const s of ['${{ github.sha }}', '${{ matrix.node }}', '${{ inputs.token_name }}']) assert.ok(!SECRET.test(s), s);
+});
+
+test('every git call runs with core.longpaths, the user\'s own repo config is never written', () => {
+  const d = tmp('nexus-ed-lp-');
+  git(d, 'init', '-q', '-b', 'main');
+  assert.equal(gitIn(d, ['config', '--get', 'core.longpaths']).out, 'true');
+  assert.ok(!/longpaths/i.test(fs.readFileSync(path.join(d, '.git', 'config'), 'utf8')), 'the config file is untouched');
+  const env = longPathsEnv({ GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'a.b', GIT_CONFIG_VALUE_0: 'c' });
+  assert.deepEqual([env.GIT_CONFIG_COUNT, env.GIT_CONFIG_KEY_1, env.GIT_CONFIG_VALUE_1, env.GIT_CONFIG_KEY_0], ['2', 'core.longpaths', 'true', 'a.b']);
+});
+
+test('the repo verify gets a bare environment, a timeout ends the whole run, and an uninstalled workspaces repo is skipped', () => {
+  const d = tmp('nexus-ed-verify2-');
+  put(d, 'package.json', '{ "scripts": { "verify": "node -e \\"process.exit(process.env.SECRET_TOKEN_X || process.env.GITHUB_TOKEN ? 3 : 0)\\"" } }');
+  const saved = [process.env.SECRET_TOKEN_X, process.env.GITHUB_TOKEN];
+  process.env.SECRET_TOKEN_X = 'leak';
+  process.env.GITHUB_TOKEN = 'leak';
+  try { assert.equal(repoVerify(d).ok, true, 'no token reaches the script'); } finally {
+    for (const [k, v] of [['SECRET_TOKEN_X', saved[0]], ['GITHUB_TOKEN', saved[1]]]) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+  const slow = tmp('nexus-ed-slow-');
+  put(slow, 'package.json', '{ "scripts": { "verify": "node -e \\"setTimeout(()=>{},60000)\\"" } }');
+  const t0 = Date.now();
+  const r = repoVerify(slow, { timeout: 1500 });
+  assert.equal(r.ok, false);
+  assert.match(r.out, /timed out/);
+  assert.ok(Date.now() - t0 < 25000, `${Date.now() - t0} ms`);
+  const mono = tmp('nexus-ed-mono-');
+  put(mono, 'package.json', '{ "workspaces": ["packages/*"], "scripts": { "verify": "exit 1" } }');
+  put(mono, 'packages/a/package.json', '{ "dependencies": { "x": "1" } }');
+  const s = repoVerify(mono);
+  assert.ok(s.ok && s.skipped, JSON.stringify(s));
+  fs.mkdirSync(path.join(mono, 'node_modules'));
+  const s2 = repoVerify(mono);
+  assert.ok(s2.ok && s2.skipped && /workspace packages\/a/.test(s2.out), JSON.stringify(s2));
 });
