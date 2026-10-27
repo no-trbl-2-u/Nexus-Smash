@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # PAT so the digest commit lands as the nexus author —
@@ -34,7 +34,7 @@ jobs:
           token: ${{ secrets.ACTIONS_PAT }}
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
 
@@ -42,7 +42,7 @@ jobs:
       # seven_day reading, then the gate (a scheduled night run
       # honours the soft cap too). /digest prints the reading.
       - name: Quota cache restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}
@@ -98,7 +98,7 @@ jobs:
 
       - name: Quota cache save
         if: always() && steps.quota.outputs.quota != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .nexus/quota.json
           key: nexus-quota-${{ github.run_id }}-${{ github.run_attempt }}

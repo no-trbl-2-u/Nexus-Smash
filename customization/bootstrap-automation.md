@@ -554,7 +554,7 @@ template before installing it:
 
 1. **Checkout step uses ACTIONS_PAT**, not `GITHUB_TOKEN`:
    ```yaml
-   - uses: actions/checkout@v4
+   - uses: actions/checkout@v7
      with:
        fetch-depth: 0
        token: ${{ secrets.ACTIONS_PAT }}
@@ -766,7 +766,7 @@ auth's accessible resources.
 ### GitHub Actions workflow quirks
 
 - **`pnpm-lock.yaml` is required for `pnpm` cache.**
-  `actions/setup-node@v4` with `cache: pnpm` fails before
+  `actions/setup-node@v7` with `cache: pnpm` fails before
   the lockfile exists. Gate with
   `cache: ${{ hashFiles('pnpm-lock.yaml') != '' && 'pnpm' || '' }}`.
 - **`packageManager` in `package.json` is required for
