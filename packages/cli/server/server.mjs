@@ -24,6 +24,7 @@ import { createLoopSecret } from './cloud-secret.mjs';
 import { repoPlace } from './place.mjs';
 import * as repoMod from './repo.mjs';
 import * as local from './local.mjs';
+import { readImprove, writeImprove } from './improve.mjs';
 import * as gh from './gh.mjs';
 import { readPlan } from './plan.mjs';
 import { landReorder } from './reorder.mjs';
@@ -1073,6 +1074,8 @@ export async function startServer({ repo, port = 0, token = crypto.randomBytes(2
         case 'GET /api/models': return send(res, 200, await modelsView());
         case 'GET /api/local': return send(res, 200, await local.localView(repo));
         case 'POST /api/local': return send(res, 200, await local.writeLocal(repo, await body(req)));
+        case 'GET /api/improve': return send(res, 200, readImprove(repo));
+        case 'POST /api/improve': { const { status, ...r } = writeImprove(repo, await body(req)); return send(res, status, r); }
         case 'POST /api/owner': { const b = await body(req); return send(res, 200, { owner: await repoMod.setOwner(repo, !!b.on) }); }
         case 'POST /api/send': {
           // Images ride along as base64 (spec 51, A2): this route alone takes a body that big.
