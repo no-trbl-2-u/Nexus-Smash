@@ -637,7 +637,7 @@ nexus/
 ├── plan/                              # nexus's OWN state files (specs + chunks, pending, archive, queues)
 ├── identity/                          # nexus's OWN identity layer: footguns.md (the ladder) + decisions/
 ├── .claude/                           # nexus's OWN commands + settings.json + guard and steer hooks
-├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + probe.yml (temporary: spec 55.6's latency probe)
+├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + surface-ci.yml (spec 64: the surface leg on every PR, full depth) + probe.yml (temporary: spec 55.6's latency probe)
 ├── packages/
 │   └── cli/                           # the GUI (kit.json package) for Claude Code (React+Vite; design/handoff/ is its UI source of truth; publish.yml ships it, cli-ci.yml tests it)
 └── templates/
