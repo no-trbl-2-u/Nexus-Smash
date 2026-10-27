@@ -223,7 +223,8 @@ templates/
 │   ├── __tests__/bootstrap.test.mjs   (bootstrap's cloud-loop plan: the loop mode, the PR-mode files, the placeholders; pure)
 │   ├── __tests__/worktree.test.mjs    (worktree close and list in scratch repos; slower, offline)
 │   ├── __tests__/push-policy-hook.test.mjs  (the pre-push hook end to end in a scratch git repo; slower, offline)
-│   └── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   ├── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   └── __tests__/claims-board-write.test.mjs  (the board over git: (x2), replacement, invalidation, caps, a lost race retried and nothing dropped; slower, offline)
 ├── env/
 │   ├── env.example                    → repo's .env.example
 │   └── nexus.secrets.json             → repo root (secrets by name, never a value; nexus/customization/secrets.md)
