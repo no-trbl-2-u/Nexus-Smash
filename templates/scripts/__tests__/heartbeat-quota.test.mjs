@@ -102,7 +102,9 @@ describe('heartbeat reads the cadence', { skip: !bashOk && 'no posix bash here' 
     });
 
     it(`${rel}: no cadence output leaves the literal`, () => {
-      assert.match(runCadence(rel, 'none').out, /march: last successful tick \d+h ago \(alarm at 14h\)/);
+      // The literal is the file's own preset: nexus runs eager (10 h), the template ships steady (14 h).
+      const want = /march_hours=(\d+)/.exec(fs.readFileSync(path.join(ROOT, rel), 'utf8'))[1];
+      assert.match(runCadence(rel, 'none').out, new RegExp(`march: last successful tick \\d+h ago \\(alarm at ${want}h\\)`));
     });
   }
 });
