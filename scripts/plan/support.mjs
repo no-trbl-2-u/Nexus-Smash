@@ -487,13 +487,14 @@ export async function loadPlan(root) {
   return { readme, specs, closed, archive: readSafe(path.join(dir, 'ARCHIVE.md')) };
 }
 
-/** gh read only: the issue's author association and label names (the REST reply; `gh issue view` rejects authorAssociation), or null. */
+/** gh read only: the issue's author association label names, the repo read and whether it is a PR (the REST reply; `gh issue view` rejects authorAssociation), or null. */
 export function ghIssue(num, { run = spawnSync } = {}) {
   const res = run('gh', ['api', `repos/{owner}/{repo}/issues/${num}`], { encoding: 'utf8', windowsHide: true });
   if (!res || res.status !== 0) return null;
   try {
     const j = JSON.parse(res.stdout);
-    return { association: j.author_association ?? '', labels: (j.labels ?? []).map((l) => l.name ?? l) };
+    const m = /(?:repos/|github.com/)([^/]+/[^/]+)/.exec(String(j.repository_url ?? j.html_url ?? ''));
+    return { association: j.author_association ?? '', labels: (j.labels ?? []).map((l) => l.name ?? l), repo: m ? m[1] : '', isPr: Boolean(j.pull_request) };
   } catch {
     return null;
   }
@@ -544,10 +545,12 @@ export async function main(argv, { root = process.cwd(), env = process.env, log 
     const kind = at('--kind');
     if (!num || !/^\d+$/.test(num) || !kind) return (console.error(USAGE), 64);
     const who = at('--association') !== undefined ? { association: at('--association'), labels: (at('--labels') ?? '').split(',').map((s) => s.trim()).filter(Boolean) } : gh(num);
+    if (who?.isPr) return (console.error(`#${num} is a pull request, not an issue: not routed`), 64);
     const { level } = supportLevel(bearings, env);
     const r = who ? route({ level, trust: trust(env), kind, ...who }) : { route: 'stock', why: 'gh unavailable: triage routes as today' };
-    if (json) log(JSON.stringify({ issue: Number(num), level, ...r }));
-    else log(`${r.route} #${num} · ${r.why}`);
+    const repo = who?.repo || '';
+    if (json) log(JSON.stringify({ issue: Number(num), level, ...(repo ? { repo } : {}), ...r }));
+    else log(`${r.route} #${num}${repo ? ` (${repo})` : ''} · ${r.why}`);
     return 0;
   }
   if (cmd === 'cap') {
