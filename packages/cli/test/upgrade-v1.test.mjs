@@ -268,7 +268,8 @@ test('a v2 repo is already on v2 (exit 0); a repo with no plan exits 2; no origi
 
 test('flags a later release carries are refused, never ignored; --help prints the usage', async () => {
   const out = sink();
-  for (const f of ['--write', '--land', '--rollback', '--pr']) assert.equal(await runUpgrade([f], { out, err: out }), 2, f);
+  // --write is carried for a v2 repo's sync (upgrade-sync.test.mjs covers it, and its refusal on a v1 repo).
+  for (const f of ['--land', '--rollback', '--pr']) assert.equal(await runUpgrade([f], { out, err: out }), 2, f);
   assert.match(out.text(), /not in this release yet/);
   assert.equal(await runUpgrade(['--bogus'], { out, err: out }), 2);
   const help = sink();
