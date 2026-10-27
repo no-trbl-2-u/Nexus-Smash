@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { parseSpec } from '../plan-check.mjs';
-import { agedScore, asapCap, bearingsLevel, capacity, closingRefs, escalateDays, ghAllIssues, gitCommit, heldPackages, issueBorn, keepGoing, loopFiled, main, placed, pulseLine, refsIssue, route, slaDue, slaHours, supportLevel, supportPulse, tellPlan, trust, userBonus, userRows } from '../plan/support.mjs';
+import { agedScore, asapCap, bearingsLevel, capacity, closingRefs, escalateDays, ghAllIssues, ghIssue, gitCommit, heldPackages, issueBorn, keepGoing, loopFiled, main, placed, pulseLine, refsIssue, route, slaDue, slaHours, supportLevel, supportPulse, tellPlan, trust, userBonus, userRows } from '../plan/support.mjs';
 
 const readme = (asap) => ['## Lanes', '', '**Asap** (built before the table):', '', ...asap, '', '**Held** (waits):', '', '- (none)', '', '## Specs', ''].join('\n');
 const spec = (num, chunks) => parseSpec(`${num}-x.md`, ['## Acceptance', '- **A1** x', '## Chunks', 'Measure: 1 open · 0 closed · next A2', ...chunks].join('\n'));
@@ -561,5 +561,23 @@ describe('the command', () => {
         console.error = err;
       }
     }
+  });
+});
+
+describe('ghIssue reads the REST reply (A1)', () => {
+  it('takes author_association and label names from gh api', () => {
+    const calls = [];
+    const run = (cmd, args) => {
+      calls.push([cmd, ...args]);
+      return { status: 0, stdout: JSON.stringify({ number: 7, author_association: 'FIRST_TIME_CONTRIBUTOR', labels: [{ name: 'bug' }, { name: 'needs-user' }] }) };
+    };
+    assert.deepEqual(ghIssue(7, { run }), { association: 'FIRST_TIME_CONTRIBUTOR', labels: ['bug', 'needs-user'] });
+    assert.deepEqual(calls, [['gh', 'api', 'repos/{owner}/{repo}/issues/7']]);
+  });
+
+  it('returns null when gh fails or answers junk', () => {
+    assert.equal(ghIssue(7, { run: () => ({ status: null, stdout: '' }) }), null);
+    assert.equal(ghIssue(7, { run: () => ({ status: 1, stdout: '' }) }), null);
+    assert.equal(ghIssue(7, { run: () => ({ status: 0, stdout: 'not json' }) }), null);
   });
 });

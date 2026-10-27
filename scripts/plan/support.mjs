@@ -487,13 +487,13 @@ export async function loadPlan(root) {
   return { readme, specs, closed, archive: readSafe(path.join(dir, 'ARCHIVE.md')) };
 }
 
-/** gh read only: the issue's author association and label names, or null. */
+/** gh read only: the issue's author association and label names (the REST reply; `gh issue view` rejects authorAssociation), or null. */
 export function ghIssue(num, { run = spawnSync } = {}) {
-  const res = run('gh', ['issue', 'view', String(num), '--json', 'number,authorAssociation,labels'], { encoding: 'utf8', windowsHide: true });
+  const res = run('gh', ['api', `repos/{owner}/{repo}/issues/${num}`], { encoding: 'utf8', windowsHide: true });
   if (!res || res.status !== 0) return null;
   try {
     const j = JSON.parse(res.stdout);
-    return { association: j.authorAssociation ?? '', labels: (j.labels ?? []).map((l) => l.name ?? l) };
+    return { association: j.author_association ?? '', labels: (j.labels ?? []).map((l) => l.name ?? l) };
   } catch {
     return null;
   }
