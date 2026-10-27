@@ -36,12 +36,12 @@ jobs:
       contents: write        # push the merge onto the PR's branch
       pull-requests: write   # comment, label
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -53,7 +53,7 @@ jobs:
       - name: The loop's app token
         id: app
         if: vars.NEXUS_APP_ID != ''
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ vars.NEXUS_APP_ID }}
           private-key: ${{ secrets.NEXUS_APP_PRIVATE_KEY }}

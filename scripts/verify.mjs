@@ -949,6 +949,8 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/pending.test.mjs',
   'templates/scripts/__tests__/settle.test.mjs',
   'templates/scripts/__tests__/claims-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
   'templates/scripts/__tests__/claims-board.test.mjs',
   'templates/scripts/__tests__/push-policy.test.mjs',
   'templates/scripts/__tests__/progress.test.mjs',
@@ -1006,6 +1008,7 @@ const PURE_SUITES = [
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
   'templates/scripts/__tests__/claims.test.mjs',
+  'templates/scripts/__tests__/claims-board-write.test.mjs',
   'templates/scripts/__tests__/push-policy-hook.test.mjs',
   'templates/scripts/__tests__/install-hooks-run.test.mjs',
   'templates/scripts/__tests__/worktree.test.mjs',
@@ -1132,8 +1135,9 @@ async function legWorkflows() {
   const failures = problems.map((p) => { const m = /^(.*?\.ya?ml)(:.*)$/s.exec(p); return m ? normalize(path.relative(ROOT, m[1])) + m[2] : p })
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
+  failures.push(...nodeActionMajorsCheck())
   failures.push(...prFlowCheck())
-  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
 }
 
 // Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.
@@ -1152,6 +1156,36 @@ function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(RO
     if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
   }
   if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
+  return failures
+}
+
+// 39.11 (A12): no workflow or composite action pins a first-party
+// action on a Node 20 major. GitHub is retiring the Node 20 runtime,
+// and every run of an old major warns that it targets it. Each entry
+// is the oldest major whose action.yml says `using: node24`
+// (checked against the action's repo); a sub-path such as
+// cache/restore counts as its action.
+const NODE24_MAJORS = {
+  checkout: 5,
+  'setup-node': 5,
+  cache: 5,
+  'upload-artifact': 6,
+  'download-artifact': 7,
+  'create-github-app-token': 3,
+}
+function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.github/actions', 'templates/.github/workflows', 'templates/.github/actions']) {
+  const failures = []
+  for (const dir of dirs) {
+    const abs = path.join(ROOT, dir)
+    if (!fs.existsSync(abs)) continue
+    for (const file of walkFiles(abs).filter((f) => /\.ya?ml$/.test(f))) {
+      const rel = normalize(path.relative(ROOT, file))
+      readFile(rel).split(/\r?\n/).forEach((line, i) => {
+        const m = /\buses:\s*actions\/([a-z-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
+        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: actions/${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
+      })
+    }
+  }
   return failures
 }
 
