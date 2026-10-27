@@ -852,7 +852,8 @@ nexus/
     │   ├── __tests__/worktree.test.mjs # worktree close and list in scratch repos (offline)
     │   ├── __tests__/push-policy-hook.test.mjs # the pre-push hook end to end (offline)
     │   ├── __tests__/claims.test.mjs  # claims over git in scratch repos (offline)
-    │   └── __tests__/claims-board-write.test.mjs # the board over git: (x2), replacement, invalidation, caps, a lost race retried, nothing dropped (offline)
+    │   ├── __tests__/claims-board-write.test.mjs # the board over git: (x2), replacement, invalidation, caps, a lost race retried, nothing dropped (offline)
+    │   └── __tests__/board-run.test.mjs # board.mjs over a real claims branch: snapshot + cursor, grep, unfold (offline)
     ├── env/
     │   ├── env.example                # NETLIFY_AUTH_TOKEN, GH_TOKEN, NOTIFY_*, etc.
     │   └── nexus.secrets.json         # → repo root: secrets by name, never a value (customization/secrets.md)
