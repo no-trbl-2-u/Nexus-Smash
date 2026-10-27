@@ -63,6 +63,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolve } from './improve.mjs';
 
 export const LEVELS = ['off', 'triage-only', 'fix-small', 'fix-all'];
 export const COLLABORATORS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
@@ -79,14 +80,21 @@ const DAY = 24 * HOUR;
 
 const knob = (name) => new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?[*\`]*${name}[*\`]*[ \\t]*:[*\`]*[ \\t]*([\\w.-]+)`, 'mi');
 
-/** `Support:` from plan/bearings.md text, or null when absent or not a level. */
-export function bearingsLevel(bearings = '') {
-  const m = knob('Support').exec(bearings);
-  const v = m?.[1]?.toLowerCase();
-  return LEVELS.includes(v) ? v : null;
+/** The resolver's support knob for bearings text (the dial and the `Support:` line, never the variable). */
+function dialSupport(bearings) {
+  return resolve(bearings, {}).knobs.find((k) => k.knob === 'support');
 }
 
-/** The level in force: { level, source, note }. A set NEXUS_SUPPORT wins over bearings; neither is triage-only. */
+/** `Support:` from plan/bearings.md text, or null when absent or not a level. */
+export function bearingsLevel(bearings = '') {
+  const k = dialSupport(bearings);
+  return k.source === 'override' ? k.value : null;
+}
+
+/**
+ * The level in force: { level, source, note }. A set NEXUS_SUPPORT wins (the cloud's source of truth; scripts/plan/
+ * improve.mjs resolves it the same way), then the `Support:` line, then the `Improve:` dial, then triage-only.
+ */
 export function supportLevel(bearings = '', env = process.env) {
   const fromBearings = bearingsLevel(bearings);
   const raw = (env.NEXUS_SUPPORT ?? '').trim().toLowerCase();
@@ -96,6 +104,8 @@ export function supportLevel(bearings = '', env = process.env) {
   }
   const bad = raw ? `NEXUS_SUPPORT=${raw} is not a level (${LEVELS.join(', ')}); ignored` : null;
   if (fromBearings) return { level: fromBearings, source: 'bearings', note: bad };
+  const dialed = dialSupport(bearings);
+  if (resolve(bearings, {}).set) return { level: dialed.value, source: 'dial', note: bad };
   return { level: 'triage-only', source: 'default', note: bad };
 }
 
