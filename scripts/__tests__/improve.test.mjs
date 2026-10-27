@@ -30,8 +30,8 @@ const SPEC = {
 
 // Registry rows the upgrade writes that the dial does not govern: the cadence step's own numbers (the NEXUS_CADENCE
 // preset sets them). A new write:true knob lands here or in TABLE, or the test fails.
-// `UI` is the browser-walk target, not a dial knob: the dial governs `UI cadence`.
-const UNGOVERNED = new Set(['NEXUS_CHAIN_MAX', 'NEXUS_IDLE_BACKOFF', 'NEXUS_QUOTA_MAX', 'UI']);
+// `UI` is the browser-walk target and `Improve` is the dial itself: neither is a dial knob (the dial governs `UI cadence`).
+const UNGOVERNED = new Set(['NEXUS_CHAIN_MAX', 'NEXUS_IDLE_BACKOFF', 'NEXUS_QUOTA_MAX', 'UI', 'Improve']);
 
 describe('the dial', () => {
   it('reads each position, case-insensitively, in any bearings line shape', () => {
