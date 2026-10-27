@@ -107,8 +107,9 @@ export function cleanTitle(raw) {
 }
 
 // The first n words; a cut that lands on a dangling function word
-// ("... doctrine string from") backs up to the word before it.
-const DANGLING = /\s+(?:a|an|the|of|in|on|to|for|from|with|and|or|via|by|at|as|into|than|that|is|are)$/i
+// ("... doctrine string from") backs up to the word before it. Lowercase
+// only: a capital "A" or "I" is a name or a letter, content.
+const DANGLING = /\s+(?:a|an|the|of|in|on|to|for|from|with|and|or|via|by|at|as|into|than|that|is|are)$/
 export const words = (t, n) => {
   const all = t.split(/\s+/)
   let out = all.slice(0, n).join(' ').replace(/[;:,]+$/, '')

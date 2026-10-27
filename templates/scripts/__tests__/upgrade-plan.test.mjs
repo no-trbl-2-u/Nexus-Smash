@@ -302,3 +302,11 @@ test('words: a cut that lands on a dangling function word backs up; a whole titl
   assert.equal(words('Stop publishing the private DevLog: the in-repo half of the Pages scope-down', 10), 'Stop publishing the private DevLog: the in-repo half')
   assert.equal(words('Hazard v2 in', 3), 'Hazard v2 in')
 })
+
+test('words: a capital letter or name after a preposition is content, never trimmed as a function word', async () => {
+  const { words } = await import('../upgrade-plan.mjs')
+  assert.equal(words('Move data from A to B and back again', 7), 'Move data from A to B')
+  assert.equal(words('Move data from A to B and back again', 5), 'Move data from A')
+  assert.equal(words('Port the engine to I O and then more words here', 6), 'Port the engine to I O')
+  assert.equal(words('Move data from the old store and the rest', 5), 'Move data from the old')
+})
