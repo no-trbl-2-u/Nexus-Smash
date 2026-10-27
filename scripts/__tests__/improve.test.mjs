@@ -209,7 +209,15 @@ describe('--get (the cadence step falls back to the dial)', () => {
     assert.deepEqual(run(bearings('Improve: bold'), ['--get', 'cadence']).out, ['eager']);
     assert.deepEqual(run(bearings(), ['--get', 'cadence']).out, ['steady']);
     assert.deepEqual(run(bearings(), ['--get', 'cadence', '--if-set']).out, []);
-    assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence', '--if-set']).out, ['steady']);
+    // gentle is today's behaviour: the workflow literals stand, so the Cadence step is passed nothing.
+    const passed = (text, env = {}) => (env.NEXUS_CADENCE || run(text, ['--get', 'cadence', '--if-set'], env).out[0] || '');
+    assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence', '--if-set']).out, []);
+    assert.equal(passed(bearings('Improve: gentle')), '');
+    assert.equal(passed(bearings('Improve: off')), 'calm');
+    assert.equal(passed(bearings('Improve: steady')), 'steady');
+    assert.equal(passed(bearings('Improve: bold')), 'eager');
+    assert.equal(passed(bearings('Improve: gentle'), { NEXUS_CADENCE: 'sprint' }), 'sprint');
+    assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence']).out, ['steady']);
     assert.deepEqual(run(bearings('Support: fix-all'), ['--get', 'support', '--if-set']).out, ['fix-all']);
   });
   it('--line is the one-line digest form: the dial, then each knob not at its dial value', () => {

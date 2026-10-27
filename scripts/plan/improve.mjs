@@ -9,8 +9,10 @@
 //
 //   node scripts/plan/improve.mjs [--json] [--root <dir>]     # one line per knob: <knob> <value> (dial|override|var)
 //   node scripts/plan/improve.mjs --line                      # the digest's one line: improve bold; promote owner (override)
-//   node scripts/plan/improve.mjs --get <knob> [--if-set]     # the bare value; --if-set prints nothing when only the
-//                                                             # absent dial gave it (a workflow falling back to the dial)
+//   node scripts/plan/improve.mjs --get <knob> [--if-set]     # the bare value; --if-set prints nothing when only a
+//                                                             # gentle (or absent) dial gave it: gentle is today's
+//                                                             # behaviour, so a workflow's literals stand (the Cadence
+//                                                             # step); off, steady and bold are passed through
 //
 // UI: the `UI:` line (none | url | dev) is the browser-walk TARGET and is not a dial knob. The dial's ui row is the audit
 // CADENCE, read from `UI cadence:` (none | critique | iterate | both: the line the critique and iterate skills already
@@ -184,7 +186,8 @@ export function main(argv = process.argv.slice(2), { root, env = process.env, lo
   if (get >= 0) {
     const k = r.knobs.find((x) => x.knob === argv[get + 1]);
     if (!k) { err(`improve: unknown knob ${argv[get + 1] ?? ''} (${r.knobs.map((x) => x.knob).join(', ')})`); return 2; }
-    if (!(argv.includes('--if-set') && k.source === 'dial' && !r.set)) log(k.value);
+    // --if-set: a value the dial alone gives counts only above gentle; gentle is today's behaviour, so nothing is set.
+    if (!(argv.includes('--if-set') && k.source === 'dial' && r.dial === DEFAULT_POSITION)) log(k.value);
     return 0;
   }
   if (argv.includes('--line')) log(summary(r));
