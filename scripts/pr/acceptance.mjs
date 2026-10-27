@@ -145,7 +145,10 @@ export function summary({ rows, replay }) {
   return out.join('\n');
 }
 
-const sh = (cmd, args, opts) => spawnSync(cmd, args, { encoding: 'utf-8', ...opts });
+// A proof run from inside another node:test run (the suites do) must not inherit its context, or a nested
+// `node --test` reports success without running the file.
+const childEnv = () => Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== 'NODE_TEST_CONTEXT'));
+const sh = (cmd, args, opts) => spawnSync(cmd, args, { encoding: 'utf-8', env: childEnv(), ...opts });
 
 /** The real `io`: files under `root`, node's test runner, git for the merge base. Nothing here reads a secret. */
 export function gitIo({ root = process.cwd(), base = null } = {}) {

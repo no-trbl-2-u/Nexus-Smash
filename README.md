@@ -786,6 +786,7 @@ nexus/
     │   ├── ui-walk.mjs                # the site's UI: routes in Chrome at two viewports -> walk.json + PNGs; playwright-core or zero-dep CDP; anonymous; UI: none walks nothing
     │   ├── __tests__/loop-issue.test.mjs # unit tests, node:test, no devDeps
     │   ├── __tests__/acceptance.test.mjs # the judge's logic: proof lines, missing or red proofs, the parent replay and guard-test; io faked
+    │   ├── __tests__/acceptance-run.test.mjs # the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree (scripts-git)
     │   ├── __tests__/plan-check.test.mjs # unit tests for plan-check.mjs
     │   ├── __tests__/pending.test.mjs # pending files, config, settled view
     │   ├── __tests__/settle.test.mjs  # settle's pure functions

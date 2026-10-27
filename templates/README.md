@@ -167,6 +167,7 @@ templates/
 │   ├── ui-walk.mjs                    (the scripted walk, reader Path A2 and /iterate dimension H: plan/bearings.md's UI routes in Chrome at desktop and mobile -> .nexus/walk/<iso>/walk.json + one PNG a screen; playwright-core when present, else zero-dependency CDP over Node 22's WebSocket, else --screenshot; anonymous; UI: none walks nothing)
 │   ├── __tests__/loop-issue.test.mjs  (unit tests, node:test, no devDeps)
 │   ├── __tests__/acceptance.test.mjs  (the judge's logic on faked io: proof lines, a closed ID with none, a missing or red proof, the parent replay and its guard-test)
+│   ├── __tests__/acceptance-run.test.mjs  (the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree)
 │   ├── __tests__/plan-check.test.mjs  (unit tests for plan-check.mjs)
 │   ├── __tests__/pending.test.mjs     (pending files, the config, the settled view)
 │   ├── __tests__/settle.test.mjs      (settle's pure functions)
