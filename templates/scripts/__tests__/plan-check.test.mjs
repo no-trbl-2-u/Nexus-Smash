@@ -328,3 +328,23 @@ test('runCheck reads nexus.secrets.json beside plan/, and reports a manifest tha
     assert.match(runCheck({ repoAbs: dir }).failures.join('\n'), /nexus\.secrets\.json: not JSON/)
   } finally { fs.rmSync(dir, { recursive: true, force: true }) }
 })
+
+// Spec 59 (A3): a `field` candidate describes a pattern and carries no URL; the sources live in the job summary only.
+test('runCheck fails a field candidate in CANDIDATES.md that carries a URL, and only that', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-field-'))
+  const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true }); fs.writeFileSync(path.join(dir, rel), text) }
+  const row = (signal) => `# Candidates\n\n## Pending\n\n### [ ] [score 4.0] A pattern about resumable runs\n- proposed: 2026-10-27\n- source signals: ${signal}\n- rationale: x\n`
+  try {
+    put('plan/07-search.md', `# 07 — Search\n\n${GOOD}`)
+    put('plan/README.md', `**Asap**\n\n- (none)\n\n| # | Initiative | Spec | Status | Progress |\n|---|---|---|---|---|\n${README}\n`)
+    put('plan/ARCHIVE.md', '# Archive\n')
+    put('plan/CANDIDATES.md', row('field (2026-10-27): runs resume across machines'))
+    assert.deepEqual(runCheck({ repoAbs: dir }).failures, [])
+    put('plan/CANDIDATES.md', row('AUDIT rows, see https://example.com/issue/4'))
+    assert.deepEqual(runCheck({ repoAbs: dir }).failures, [])
+    put('plan/CANDIDATES.md', row('field (2026-10-27): runs resume across machines, https://example.com/post'))
+    const red = runCheck({ repoAbs: dir }).failures
+    assert.equal(red.length, 1)
+    assert.match(red[0], /^plan\/CANDIDATES\.md: field candidate "A pattern about resumable runs" carries a URL/)
+  } finally { fs.rmSync(dir, { recursive: true, force: true }) }
+})

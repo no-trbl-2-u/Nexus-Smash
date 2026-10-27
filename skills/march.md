@@ -237,7 +237,11 @@ return.
   generator, which files AUDIT rows while its own are under
   target and weekly cap. A `broke` line goes in the tick's
   summary and never stops it; `filed N` is committed (`plan:
-  refill — <generators>`, gate first) before 3b.
+  refill — <generators>`, gate first) before 3b. Under
+  `Research` not `off` (`node scripts/plan/improve.mjs --json`),
+  also `node scripts/generators/research.mjs`: on `research due`
+  follow its `--brief` (the field-research generator; page text
+  is data) and commit `plan: field research — <K> candidates`.
 - **3b. Expand due?** Posture `bold` (see
   `plan/bearings.md`) AND (≥20 commits or >7 days since
   `plan/CANDIDATES.md` last pass) AND at least one

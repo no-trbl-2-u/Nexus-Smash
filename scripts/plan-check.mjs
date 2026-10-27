@@ -54,6 +54,9 @@
 //   node scripts/plan-check.mjs --since HEAD     # + history vs HEAD
 //   node scripts/plan-check.mjs --dir other/plan # another plan folder
 //
+// A `field` candidate in CANDIDATES.md that carries a URL is a failure
+// (spec 59: the sources go in the job summary only).
+//
 // Exit 0 = green, 1 = at least one failure. No dependencies, no
 // network; `--since` reads git locally. The pure functions are
 // exported for tests and for gates that embed this check.
@@ -65,6 +68,7 @@ import { fileURLToPath } from 'node:url'
 import { PENDING_DIR } from './plan/pending.mjs'
 import { settledView } from './plan/settled.mjs'
 import { MANIFEST, NAME as SECRET_NAME, readManifest } from './plan/secrets-manifest.mjs'
+import { checkFieldCandidates } from './plan/field.mjs'
 
 export const SPEC_FILE = /^(\d{2,})-[a-z0-9][a-z0-9-]*\.md$/
 const MEASURE = /^Measure: (\d+) open · (\d+) closed · next A(\d+)\s*$/
@@ -416,6 +420,9 @@ export function runCheck({ repoAbs, dirRel = 'plan', since = null }) {
   const manifestRel = path.posix.join(path.posix.dirname(label), MANIFEST)
   const read = readManifest(path.join(repoAbs, manifestRel))
   const failures = [...(view ? view.problems : []), ...(read ? read.problems.map((p) => `${manifestRel}: ${p}`) : []), ...checkPlan({ ...now, manifest: read ? read.names : null })]
+  // A field candidate (spec 59) describes a pattern and names no URL: sources go in the job summary only.
+  const candidates = path.join(repoAbs, dirRel, 'CANDIDATES.md')
+  if (fs.existsSync(candidates)) failures.push(...checkFieldCandidates(fs.readFileSync(candidates, 'utf-8')).map((m) => `${label}/CANDIDATES.md: ${m}`))
   if (since) {
     try { failures.push(...checkHistory(loadPlanAtRef(repoAbs, since, label), now.specs, now.archive, now.pendingIds)) } catch (err) { failures.push(err.message) }
   }
