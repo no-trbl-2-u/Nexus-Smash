@@ -173,6 +173,7 @@ templates/
 │   ├── __tests__/settle.test.mjs      (settle's pure functions)
 │   ├── __tests__/settle-run.test.mjs  (settle end to end in a scratch git repo; slower, offline)
 │   ├── __tests__/claims-codec.test.mjs  (the claims rules, pure)
+│   ├── __tests__/board-codec.test.mjs  (the board's rules, pure: dedup, PATCH replacement, FAIL invalidation, the caps)
 │   ├── __tests__/claims-board.test.mjs  (the board's table and its one issue, with a fake gh; pure)
 │   ├── __tests__/push-policy.test.mjs  (the push policy, pure)
 │   ├── __tests__/progress.test.mjs    (the progress view, pure)
@@ -225,7 +226,8 @@ templates/
 │   ├── __tests__/bootstrap.test.mjs   (bootstrap's cloud-loop plan: the loop mode, the PR-mode files, the placeholders; pure)
 │   ├── __tests__/worktree.test.mjs    (worktree close and list in scratch repos; slower, offline)
 │   ├── __tests__/push-policy-hook.test.mjs  (the pre-push hook end to end in a scratch git repo; slower, offline)
-│   └── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   ├── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   └── __tests__/claims-board-write.test.mjs  (the board over git: (x2), replacement, invalidation, caps, a lost race retried and nothing dropped; slower, offline)
 ├── env/
 │   ├── env.example                    → repo's .env.example
 │   └── nexus.secrets.json             → repo root (secrets by name, never a value; nexus/customization/secrets.md)
@@ -321,6 +323,58 @@ line, the archive) is explained in
 
 For these, the templates are **scaffolds** showing the shape;
 adapt content to your reality.
+
+## Kit script tests in your gate
+
+> `scripts/__tests__/` copies in with the scripts, but not every
+> suite belongs in your `npm test`. Run the pure ones; leave the
+> kit's own wiring checks to the kit.
+
+Measured by copying `templates/scripts/`, `skills/`, `.github/`
+and `.claude/` into a scratch repo (no `bootstrap.mjs`, as an
+adopt prune leaves it) and running each suite with `node --test`
+on a Windows laptop, one after another. A Linux runner is
+usually faster; read the seconds as an order of magnitude.
+
+**Keep in the gate (about 42 s for 41 suites).** Pure suites
+and ones that build their own scratch dirs from inline fixtures:
+announce, chain, claims-board, claims-codec, design-*, idle,
+lanes, ledger, locks, loop-issue, loop-rows, motion, nudge-check,
+order, pending, plan-check, progress, promote, push-policy,
+quota, resolve, settle, state, steer, support, tick,
+triage-match, ui-walk, upgrade-plan, workflow-lint, secrets,
+secrets-sinks, plus the `-run` suites progress-run,
+secrets-run, secrets-scan-run and design-render-run. Each takes
+under 5 s, most under 1 s.
+
+**Keep, but they are slow (about 280 s for 9 suites).** They
+spawn git or scratch repos, offline: `settle-run` (about 100 s),
+`tick-run` (about 60 s), `worktree` (about 37 s),
+`push-policy-hook` (about 29 s), `upgrade-plan-run` and
+`secrets-vault` (about 16 s each), then `plot-run`,
+`ui-walk-run` and `secrets-audit` (6 to 9 s each). Run them on
+the nightly smoke or in CI, not on every local commit.
+
+**Leave out.** They read kit-only files or the live kit plan,
+and fail in an adopter:
+
+- `bootstrap` and `cadence` import `scripts/bootstrap.mjs`,
+  which the adopt prune removes.
+- `heartbeat-quota`, `heartbeat-red`, `heartbeat-motion` and
+  `heartbeat-realized` read `templates/.github/workflows/`,
+  a path only the kit has.
+- `install-hooks-run` runs the kit's own `scripts/verify.mjs`.
+- `lost` reads the guard hook at the kit's `claude/hooks/` path.
+- `refill` reads the live `plan/AUDIT.md` as its fixture, so it
+  passes or fails with your own audit file.
+- `claims` spawns git for every case (the kit's opt-in
+  `scripts-git` leg); it did not finish in 240 s on the
+  Windows laptop. Run it only where git is cheap.
+
+Cheapest start: `node --test scripts/__tests__/<suite>` for the
+pure list, and `node scripts/plan-check.mjs`,
+`node scripts/workflow-lint.mjs` and `node scripts/secrets-scan.mjs`
+in the gate as their rows above say.
 
 ## Adopt-by-need files
 

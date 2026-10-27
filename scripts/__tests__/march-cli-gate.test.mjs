@@ -52,7 +52,7 @@ describe('march.yml builds the CLI', () => {
   it('uploads the walk as walk-<run id> for 14 days, always', () => {
     const s = step('Upload the walk');
     assert.match(s, /if: always\(\)/);
-    assert.match(s, /uses: actions\/upload-artifact@v4/);
+    assert.match(s, /uses: actions\/upload-artifact@v7/);
     assert.match(s, /name: walk-\$\{\{ github\.run_id \}\}/);
     assert.match(s, /path: \.scratch\/walk\/\*\*/);
     assert.match(s, /retention-days: 14/);

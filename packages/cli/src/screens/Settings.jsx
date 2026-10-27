@@ -17,12 +17,13 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { nextRunMode, localRunMode, saveRunMode, Icon, InfoBtn, Check, BadgeDef, BadgeAuto, Tip, Switch, Seg, ThemeSeg, FxSeg, useShell } from '../ui/index.js';
 import { CronList } from '../ui/code.jsx';
-import { api, useLocalSettings, useResource, useSecrets } from '../data/index.js';
+import { api, useImprove, useLocalSettings, useResource, useSecrets } from '../data/index.js';
 import { PATHS } from '../routes.js';
 import { useLoop, hhmm } from './cloud-settings/loop.js';
 import { MANIFEST, secretCounts, namesLabel, localKeysLabel, secretsSide } from './cloud-settings/secrets.js';
 import { Frame, LoopDot } from './cloud-settings/parts.jsx';
 import { PermissionModes } from './cloud-settings/permission-mode.jsx';
+import { ImproveDial } from './cloud-settings/improve-dial.jsx';
 import '../styles/permission-mode.css';
 import { ModelPrefs } from './cloud-settings/model-pref.jsx';
 import '../styles/model.css';
@@ -137,6 +138,16 @@ export default function Settings() {
     try { await api('/api/prefs', { permissionMode: mode }); app?.reload?.(); setSave('saved'); } catch (e) { setSave({ error: e.message }); }
   };
 
+  // The improvement dial (spec 59): the Improve: line in plan/bearings.md, through GET and POST /api/improve.
+  const improveRes = useImprove();
+  const [improveMine, setImproveMine] = useState(null);
+  const improve = improveMine ?? (improveRes.status === 'ready' ? improveRes.data?.position : null) ?? 'gentle';
+  const changeImprove = async (position) => {
+    setImproveMine(position);
+    setSave('saving');
+    try { await api('/api/improve', { position }); improveRes.reload?.(); setSave('saved'); } catch (e) { setImproveMine(null); setSave({ error: e.message }); }
+  };
+
   // Model and effort for new sessions (spec 54): GUI prefs per checkout, '' = Claude Code's default. The server drops
   // an effort the new model does not take, so the reload shows what was kept.
   const modelsRes = useResource('/api/models');
@@ -249,6 +260,17 @@ export default function Settings() {
             <div><h2 className="set-h">Permissions for new sessions</h2><p className="set-d">What a session may do without asking. A session already running keeps the mode it started with.</p></div>
             <div style={{ minWidth: 0 }}>
               <PermissionModes value={perm} onChange={changePerm} />
+            </div>
+          </section>
+
+          <section className="set-sec" style={SEC}>
+            <div><h2 className="set-h">How hard the loop improves</h2><p className="set-d">One dial for how far the loop pushes beyond your plan. It writes the Improve line in plan/bearings.md; a knob with its own line there still wins for that knob.</p></div>
+            <div style={{ minWidth: 0 }}>
+              {improveRes.status === 'ready' ? (
+                <ImproveDial value={improve} onChange={changeImprove} />
+              ) : (
+                <p className="t-body-s c-3">{improveRes.status === 'loading' ? 'Reading plan/bearings.md...' : 'This checkout has no plan/bearings.md to set the dial in.'}</p>
+              )}
             </div>
           </section>
 
