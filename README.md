@@ -629,6 +629,7 @@ nexus/
 │   ├── plot.md                        # /plot — a task into the plan with its place in line (+ bug.md: /bug)
 │   ├── messy.md                       # /messy — a raw dump into specs (the GUI's explode)
 │   ├── tidy.md                        # /tidy — clear dead claims, close idle worktrees (worktree.mjs)
+│   ├── refine.md                      # /refine <verb> — under Improve: bold, evidence context + inv/dom proposals (refine.mjs); never dispatched by march
 │   ├── design.md                      # /design — the Claude Design prompt, addenda and ingest (scripts/design/; + design/ingest.md, design/render.md, design/port.md)
 │   ├── rebooting.md                   # /rebooting, /reboot-ready, /reboot-resume — the reboot train
 │   ├── march.lanes.md                 # project lanes for march (+ iterate.lanes.md); empty in nexus but for the example
