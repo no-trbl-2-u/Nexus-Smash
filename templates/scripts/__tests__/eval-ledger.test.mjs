@@ -128,7 +128,7 @@ describe('fetching through the injected gh', () => {
     fetchMerged({ last: 10, io });
     fetchMerged({ since: '2026-10-01', repo: 'o/r', io });
     assert.deepEqual(seen[0].slice(0, 5), ['pr', 'list', '--state', 'merged', '--json']);
-    assert.equal(seen[0][seen[0].indexOf('--limit') + 1], '10');
+    assert.equal(seen[0][seen[0].indexOf('--limit') + 1], '100');
     assert.ok(!seen[0].includes('--search'));
     assert.equal(seen[1][seen[1].indexOf('--search') + 1], 'merged:>=2026-10-01');
     assert.equal(seen[1][seen[1].indexOf('--repo') + 1], 'o/r');
@@ -140,5 +140,53 @@ describe('fetching through the injected gh', () => {
     assert.equal(got.summary, summaryLine(got.counts));
     assert.equal(ledger({ last: 10, io: { gh: () => '' } }).counts.merged, 0);
     assert.throws(() => ledger({ last: 10, io: { gh: () => '{}' } }), /list/);
+  });
+});
+
+describe('review fixes', () => {
+  const M = '2026-10-20T10:00:00Z';
+
+  it('F1: a legacy commit status is finished unless pending or expected', () => {
+    const ok = { context: 'vercel', state: 'SUCCESS', startedAt: '2026-10-20T09:00:00Z' };
+    assert.equal(mergedEarly([ok], M), false);
+    assert.equal(mergedEarly([{ ...ok, state: 'FAILURE' }], M), false);
+    assert.equal(mergedEarly([{ ...ok, state: 'PENDING' }], M), true);
+    assert.equal(mergedEarly([{ ...ok, state: 'EXPECTED' }], M), true);
+    assert.equal(mergedEarly([{ context: 'codecov', state: 'SUCCESS', createdAt: '2026-10-20T10:30:00Z' }], M), false);
+    assert.equal(mergedEarly([{ ...ok, state: 'SUCCESS', createdAt: '2026-10-20T09:30:00Z', startedAt: undefined }], M), false);
+  });
+
+  it('F2: a chunk id counts only as the first thing in the title\'s trailing parentheses', () => {
+    const a = pr(1, 'feat: needs version 2.1 of the CLI (61.2)', '2026-10-20T10:00:00Z');
+    const b = pr(2, 'fix: bump to version 2.1 (70.9)', '2026-10-21T10:00:00Z');
+    const c = pr(3, 'fix: repair (61.2 review)', '2026-10-21T11:00:00Z');
+    assert.deepEqual(fixesFor(a, [a, b, c]), [3]);
+  });
+
+  it('F3: a revert of a revert is not a fix of the original', () => {
+    const a = pr(1, 'feat: thing (5.1)', '2026-10-20T10:00:00Z');
+    const r = pr(2, 'Revert "feat: thing (5.1)"', '2026-10-21T10:00:00Z', { body: 'Reverts #1' });
+    const rr = pr(3, 'Revert "Revert "feat: thing (5.1)""', '2026-10-22T10:00:00Z', { body: 'Reverts #2, restoring #1' });
+    assert.deepEqual(fixesFor(a, [a, r, rr]), [2]);
+  });
+
+  it('F4: the last n are the n most recently merged, not the n most recently created', () => {
+    const list = [pr(1, 'a', '2026-10-25T10:00:00Z'), pr(2, 'b', '2026-10-21T10:00:00Z'), pr(3, 'c', '2026-10-24T10:00:00Z'), pr(4, 'd', '2026-10-23T10:00:00Z')];
+    const seen = [];
+    const got = fetchMerged({ last: 2, io: { gh: (a) => { seen.push(a); return JSON.stringify(list); } } });
+    assert.deepEqual(got.map((p) => p.number), [1, 3]);
+    assert.ok(Number(seen[0][seen[0].indexOf('--limit') + 1]) > 2);
+  });
+
+  it('F5: closes reads semicolons and skips "of spec NN"', () => {
+    assert.deepEqual(closedIds('Closes A1 of spec 61 and A2'), ['A1', 'A2']);
+    assert.deepEqual(closedIds('Closes A1; A3.'), ['A1', 'A3']);
+    assert.deepEqual(closedIds('Closes **A4** of spec 59 (chunk 59.4).'), ['A4']);
+  });
+
+  it('F6: a skipped, cancelled or neutral judge is not a judge run', () => {
+    const j = (conclusion) => [{ name: 'judge', status: 'COMPLETED', conclusion, startedAt: '2026-10-20T09:00:00Z', completedAt: '2026-10-20T09:01:00Z' }];
+    for (const x of ['SKIPPED', 'CANCELLED', 'NEUTRAL']) assert.equal(hadJudge(j(x), M), false, x);
+    for (const x of ['SUCCESS', 'FAILURE']) assert.equal(hadJudge(j(x), M), true, x);
   });
 });

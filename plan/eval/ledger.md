@@ -8,17 +8,14 @@ Window: 10 merged PRs, 2026-10-27 to 2026-10-27.
 | Escape | Count | Meaning |
 |---|---|---|
 | early | 1 | merged while a started check was unfinished |
-| nojudge | 9 | merged with no `judge` check run |
-| unproven | 8 | closed A-IDs with no proof line, and `(no test: ...)` lines |
+| nojudge | 6 | merged with no `judge` check run |
+| unproven | 7 | closed A-IDs with no proof line, and `(no test: ...)` lines |
 | fixed | 2 | a `fix` or `revert` PR naming it landed within 7 days |
 
 ## Per PR
 
 | PR | Merged | Early | No judge | Unproven | Fixed by | Title |
 |---|---|---|---|---|---|---|
-| #9 | 2026-10-27 | - | yes | 1 | - | feat: acceptance proof lines and acceptance.mjs (61.1) |
-| #10 | 2026-10-27 | - | yes | 1 | - | feat: a v2 repo syncs to the latest kit, three-way (58.11) |
-| #11 | 2026-10-27 | - | yes | 1 | - | feat: surface.json and the surface gate leg (64.1) |
 | #14 | 2026-10-27 | yes | yes | 1 | #16 | ci: actions on Node 24 majors; adopter test costs documented (39.11) |
 | #12 | 2026-10-27 | - | yes | 1 | - | feat: the board codec and compare-and-swap write (62.1) |
 | #15 | 2026-10-27 | - | yes | 1 | #20 | feat: the improvement dial in GUI Settings (59.4) |
@@ -26,5 +23,8 @@ Window: 10 merged PRs, 2026-10-27 to 2026-10-27.
 | #16 | 2026-10-27 | - | yes | - | - | fix: the Node 24 action check catches quoted and owner/action pins; pnpm/action-setup on v6 (39.11 review) |
 | #20 | 2026-10-27 | - | yes | - | - | fix: the Settings dial reads the resolver's line; a read-only bearings is a clear 409 (59.4 review) |
 | #18 | 2026-10-27 | - | yes | 1 | - | feat: upgrade a repo on GitHub as a pull request, no checkout (58.13) |
+| #19 | 2026-10-27 | - | - | 1 | - | feat: board snapshot, grep and unfold (62.2) |
+| #22 | 2026-10-27 | - | - | 1 | - | feat: skills read knobs through the dial's resolver (59.2) |
+| #23 | 2026-10-27 | - | - | - | - | feat: /refine writes the evidence context and checks the two lenses (64.2) |
 
-ledger: 10 merged, 1 merged before checks finished, 9 with no judge run, 8 acceptance lines with no proof, 2 fixed within 7 days
+ledger: 10 merged, 1 merged before checks finished, 6 with no judge run, 7 acceptance lines with no proof, 2 fixed within 7 days

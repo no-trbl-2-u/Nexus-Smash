@@ -25,7 +25,6 @@ import { parseAcceptance, stripNoise } from '../pr/acceptance.mjs';
 export const OUT = 'plan/eval/ledger.md';
 export const FIX_DAYS = 7;
 const FIELDS = 'number,title,body,mergedAt,statusCheckRollup';
-const CHUNK_ID = /\b\d+\.\d+\b/g;
 const DAY = 86400000;
 
 const ms = (iso) => (iso ? Date.parse(iso) : NaN);
@@ -34,22 +33,33 @@ const checkName = (c) => String(c?.name ?? c?.context ?? '');
 /** The check runs that gated the merge: those that had started by `mergedAt`. A run with no start time counts. */
 export function gating(checks, mergedAt) {
   const at = ms(mergedAt);
-  return (checks ?? []).filter((c) => !(ms(c.startedAt) > at));
+  return (checks ?? []).filter((c) => !(ms(c.startedAt ?? c.createdAt) > at));
+}
+
+/** Whether one check was done by `at`. A check run needs COMPLETED; a legacy commit status (`state`, no `status`)
+ * is done unless PENDING or EXPECTED. Either way a finish time, when it has one, must not be after the merge. */
+function doneBy(c, at) {
+  const end = ms(c.completedAt ?? c.createdAt);
+  if (c.status === undefined && c.state !== undefined) {
+    if (/^(PENDING|EXPECTED)$/i.test(String(c.state))) return false;
+    return Number.isNaN(end) || end <= at;
+  }
+  return String(c.status ?? '').toUpperCase() === 'COMPLETED' && end <= at;
 }
 
 /** Whether any gating check was unfinished at the merge: not completed, or completed after it. */
 export function mergedEarly(checks, mergedAt) {
   const at = ms(mergedAt);
-  return gating(checks, mergedAt).some((c) => String(c.status ?? '').toUpperCase() !== 'COMPLETED' || !(ms(c.completedAt) <= at));
+  return gating(checks, mergedAt).some((c) => !doneBy(c, at));
 }
 
 /** Whether a `judge` check had started by the merge. */
-export const hadJudge = (checks, mergedAt) => gating(checks, mergedAt).some((c) => checkName(c) === 'judge');
+export const hadJudge = (checks, mergedAt) => gating(checks, mergedAt).some((c) => checkName(c) === 'judge' && !/^(SKIPPED|CANCELLED|NEUTRAL)$/i.test(String(c.conclusion ?? '')));
 
 /** A-IDs the body says it closes: `Closes A3`, `Closes **A3**`, `closes A1, A2`; a negation closes nothing. */
 export function closedIds(body) {
   const ids = new Set();
-  const re = /(?<!\b(?:not|never|no|n't)\s)(?<!n't\s)\bcloses?\b[\s:*]*((?:\bA\d+\b[\s,*]*(?:and\s+|&\s*)?)+)/gi;
+  const re = /(?<!\b(?:not|never|no|n't)\s)(?<!n't\s)\bcloses?\b[\s:*]*((?:\bA\d+\b(?:[\s*]*of\s+spec\s+\d+)?[\s,;*]*(?:and\s+|&\s*)?)+)/gi;
   // Inline code is a quotation of the syntax (`closes A1, A2`), not a claim.
   const prose = stripNoise(body).replace(/`[^`\n]*`/g, '');
   for (const m of prose.matchAll(re)) for (const id of m[1].matchAll(/A\d+/gi)) ids.add(id[0].toUpperCase());
@@ -64,8 +74,14 @@ export function unprovenLines(body) {
   return missing.length + lines.filter((l) => l.kind === 'no-test').length;
 }
 
-const chunkIds = (title) => new Set(String(title ?? '').match(CHUNK_ID) ?? []);
-const isFixTitle = (title) => /^\s*(fix|revert)\b/i.test(String(title ?? ''));
+/** The chunk id a title carries: the first thing in its trailing parentheses, `(39.11 review)`. A version number
+ * elsewhere in the title is not one. */
+const chunkIds = (title) => {
+  const m = String(title ?? '').match(/\(\s*(\d+\.\d+)\b[^()]*\)\s*$/);
+  return new Set(m ? [m[1]] : []);
+};
+// A revert of a revert restores the original; it fixes nothing.
+const isFixTitle = (title) => /^\s*(fix|revert)\b/i.test(String(title ?? '')) && !/^\s*revert\s+"revert\b/i.test(String(title ?? ''));
 const names = (pr, n) => new RegExp(`(?:#|/pull/)${n}(?!\\d)`).test(`${pr.title}\n${pr.body ?? ''}`);
 
 /** The later PRs in `prs` (sorted by merge time) that fix `pr` within FIX_DAYS: numbers. */
@@ -142,12 +158,14 @@ export function render(rs) {
 
 /** Merged PRs through `io.gh(args) -> stdout`: the last `limit`, or everything merged since a date. */
 export function fetchMerged({ since = null, last = 10, repo = null, io }) {
-  const args = ['pr', 'list', '--state', 'merged', '--json', FIELDS, '--limit', String(since ? 200 : last)];
+  const args = ['pr', 'list', '--state', 'merged', '--json', FIELDS, '--limit', String(since ? 200 : Math.max(100, last * 5))];
   if (since) args.push('--search', `merged:>=${since}`);
   if (repo) args.push('--repo', repo);
   const out = JSON.parse(io.gh(args) || '[]');
   if (!Array.isArray(out)) throw new Error('gh pr list did not return a list');
-  return out;
+  if (since) return out;
+  // gh lists by creation; the window is the last merges.
+  return out.sort((a, b) => ms(b.mergedAt) - ms(a.mergedAt)).slice(0, last);
 }
 
 /** Build the ledger: { rows, counts, text, summary }. */
