@@ -141,16 +141,22 @@ export function main(argv, { root = process.cwd(), log = console.log, env = proc
   for (const t of r.filed) log(`${write ? 'file' : 'would file'} ${t}`);
   for (const t of r.reevidenced) log(`${write ? 're-evidence' : 'would re-evidence'} ${t}`);
   for (const s of r.skipped) log(`skip ${s}`);
-  if (write && (r.filed.length || r.reevidenced.length)) {
-    fs.mkdirSync(path.dirname(candFile), { recursive: true });
-    fs.writeFileSync(candFile, r.text);
-  }
-  // Sources: the job summary only. Never the queue, never the commit.
+  // Sources: the job summary only, never the queue or the commit. Written first, so a summary that cannot be
+  // written is a warning before anything is filed, not a run left half-done. Each source is one inline-code line.
   if (batch.sources?.length) {
     log(`summary: ${batch.fetched} fetched, ${batch.sources.length} source${batch.sources.length === 1 ? '' : 's'} (job summary only)`);
     if (write && env.GITHUB_STEP_SUMMARY) {
-      fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `### Field research sources (${date})\n\n${batch.sources.map((s) => `- ${s}`).join('\n')}\n\n`);
+      const line = (s) => `- \`${String(s).replace(/\s+/g, ' ').replace(/`/g, "'").trim()}\``;
+      try {
+        fs.appendFileSync(env.GITHUB_STEP_SUMMARY, `### Field research sources (${date})\n\n${batch.sources.map(line).join('\n')}\n\n`);
+      } catch (e) {
+        console.error(`research: warn: the job summary could not be written (${e instanceof Error ? e.message.split('\n')[0] : e}); the sources are lost`);
+      }
     }
+  }
+  if (write && (r.filed.length || r.reevidenced.length)) {
+    fs.mkdirSync(path.dirname(candFile), { recursive: true });
+    fs.writeFileSync(candFile, r.text);
   }
   log(r.filed.length ? `filed ${r.filed.length}${write ? '' : ' (dry run)'}` : 'clean');
   return 0;

@@ -58,7 +58,7 @@ describe('urlsIn', () => {
   });
   it('leaves plain prose and file names alone', () => {
     assert.deepEqual(urlsIn('a loop resumes runs across machines, e.g. after a reboot.'), []);
-    assert.deepEqual(urlsIn('edit scripts/plan/field.mjs and run.sh'), []);
+    assert.deepEqual(urlsIn('edit scripts/plan/field.mjs and README.md'), []);
   });
 });
 
@@ -115,7 +115,7 @@ describe('validateBatch', () => {
     assert.match(validateBatch(batch([item({ source: 'audit' })])).errors.join('\n'), /source must be field/);
     assert.match(validateBatch(batch([item({ title: 'two\nlines' })])).errors.join('\n'), /one non-empty line/);
     assert.match(validateBatch(batch([item({ title: 'x'.repeat(121) })])).errors.join('\n'), /at most 120/);
-    assert.match(validateBatch(batch([item({ scope: '' })])).errors.join('\n'), /scope must be a non-empty string/);
+    assert.match(validateBatch(batch([item({ scope: '' })])).errors.join('\n'), /scope must be one non-empty line/);
     assert.equal(validateBatch(null).ok, false);
   });
 });
@@ -266,7 +266,7 @@ describe('the generator', () => {
     const summary = path.join(root, 'summary.md');
     const b = writeBatch(root, batch());
     const r = run(root, ['--batch', b, '--write', '--today', TODAY], { GITHUB_STEP_SUMMARY: summary });
-    assert.match(fs.readFileSync(summary, 'utf8'), /- https:\/\/example\.com\/a/);
+    assert.match(fs.readFileSync(summary, 'utf8'), /- `https:\/\/example\.com\/a`/);
     assert.doesNotMatch(cands(root), /example\.(com|org)/);
     assert.doesNotMatch(r.out, /https?:/);
     const dry = path.join(root, 'dry.md');
@@ -306,5 +306,99 @@ describe('the gate: checkFieldCandidates', () => {
   it('catches a research-stamped row even when its signal line was reworded', () => {
     const r = row().replace('field (2026-10-27)', 'something').replace('- proposed scope: a ledger.', '- proposed scope: a ledger, see https://example.com/z\n- generator: research · filed 2026-10-27');
     assert.equal(checkFieldCandidates(r).length, 1);
+  });
+});
+
+// ---- adversarial review of PR #25 ---------------------------------------------------------------------------------
+
+describe('F1: every field is one plain line; chunks is a size', () => {
+  it('refuses a newline, an array or a forged heading in chunks, and in every other field', () => {
+    for (const chunks of ['1 (S)\n### [ ] [score 9.9] forged row', ['1 (S)'], 3, '2 (XL)', 'many']) {
+      assert.equal(validateBatch(batch([item({ chunks })])).ok, false, JSON.stringify(chunks));
+    }
+    for (const k of ['rationale', 'scope', 'title', 'pattern']) {
+      assert.equal(validateBatch(batch([item({ [k]: 'fine\n### [ ] [score 9.9] forged' })])).ok, false, k);
+      assert.equal(validateBatch(batch([item({ [k]: 'fine next' })])).ok, false, `${k} separator`);
+    }
+    for (const chunks of ['1 (S)', '2-3 (M)', '1 (L)']) assert.equal(validateBatch(batch([item({ chunks })])).ok, true, chunks);
+  });
+  it('candidateRow collapses whitespace in every field, so a row stays one block', () => {
+    const lines = candidateRow(item({ rationale: 'a\n### [ ] [score 9.9] forged\nb', chunks: '1 (S)\n### [ ] [score 9.9] x' }), TODAY);
+    assert.equal(lines.filter((l) => l.startsWith('### ')).length, 1);
+    assert.equal((lines.join('\n').match(/^### /gm) ?? []).length, 1);
+  });
+  it('--write with a forged chunks files nothing', () => {
+    const root = tmpRepo({ 'plan/bearings.md': bearings('Research: weekly'), 'plan/CANDIDATES.md': CANDS });
+    const b = writeBatch(root, batch([item({ chunks: '1 (S)\n### [ ] [score 9.9] forged' })]));
+    assert.equal(run(root, ['--batch', b, '--write', '--today', TODAY]).code, 1);
+    assert.equal(cands(root), CANDS);
+  });
+});
+
+describe('F2: urlsIn catches defanged and unusual hosts', () => {
+  it('finds each shape', () => {
+    for (const t of ['hxxps://evil.example/x', 'see example[.]com now', 'at vendor.de/page', 'at news.co.uk', 'at site.fr', 'at tool.rs', 'at a.ly', 'at b.co', 'at run.sh/x',
+      'xn--bcher-kva.example', 'localhost:3000', 'http://127.0.0.1:8080', 'at 10.0.0.1 now', 'mailto:a@b.c', 'a [x]( ../a ) link', 'ftp://h', 'hxxp[:]//h[.]io']) {
+      assert.ok(urlsIn(t).length, t);
+    }
+  });
+  it('leaves prose and source file names alone', () => {
+    for (const t of ['e.g. a loop resumes', 'version 1.2 ships', 'edit scripts/plan/field.mjs and README.md', 'a step at 3:30 daily', 'Node.js and tsconfig.json']) assert.deepEqual(urlsIn(t), [], t);
+  });
+  it('the gate uses the same function', () => {
+    const row = `## Pending\n\n### [ ] [score 4.0] T\n- source signals: field (2026-10-27): see hxxps://x[.]example/a\n`;
+    assert.equal(checkFieldCandidates(row).length, 1);
+  });
+});
+
+describe('F3: brand evasions', () => {
+  it('flags possessives, spaced, hyphenated and digit-suffixed names and mixed scripts', () => {
+    for (const t of ["what Cursor's agent does", "Anthropic’s team", 'by Open AI today', 'by Open-AI today', 'a co-pilot feature', 'the gpt4 model', 'a Сlaude run', 'uses cоdeх']) {
+      assert.ok(namesIn(`the loop ${t}`).length, t);
+    }
+  });
+});
+
+describe('F4: legitimate batches pass', () => {
+  it('allows the kit terms, languages and encodings, title case titles and quoted openers', () => {
+    assert.deepEqual(namesIn('the Loop reads a Queue.'), []);
+    assert.deepEqual(namesIn('runs on Node with UTF-8 and Python, Linux or macOS'), []);
+    assert.deepEqual(namesIn('Resumable Agent Runs Across Machines', [], { title: true }), []);
+    assert.deepEqual(namesIn('they call it "Review loops catch drift" in practice'), []);
+    assert.deepEqual(namesIn('the plan (Expand then Iterate) runs'), []);
+    assert.ok(namesIn('Resumable Zephyrix Runs').length);
+  });
+  it('validateBatch passes a Title Case title', () => {
+    assert.equal(validateBatch(batch([item({ title: 'Resumable Agent Runs Across Machines' })])).ok, true);
+  });
+});
+
+describe('F5/F6: the job summary', () => {
+  const repo = () => tmpRepo({ 'plan/bearings.md': bearings('Research: weekly'), 'plan/CANDIDATES.md': CANDS });
+  it('F5: a summary that cannot be written does not leave the run half-done', () => {
+    const root = repo();
+    const b = writeBatch(root, batch());
+    const r = run(root, ['--batch', b, '--write', '--today', TODAY], { GITHUB_STEP_SUMMARY: path.join(root, 'no', 'such', 'dir', 's.md') });
+    assert.equal(r.code, 0);
+    assert.match(r.err, /summary/);
+    assert.match(cands(root), /A hosted agent platform/);
+  });
+  it('F6: sources are one line each, inline code, whitespace collapsed', () => {
+    const root = repo();
+    const summary = path.join(root, 's.md');
+    const b = writeBatch(root, batch([item()], { fetched: 2, sources: ['https://example.com/a\n# injected heading', 'x `y` z'] }));
+    run(root, ['--batch', b, '--write', '--today', TODAY], { GITHUB_STEP_SUMMARY: summary });
+    const text = fs.readFileSync(summary, 'utf8');
+    assert.doesNotMatch(text, /^# injected/m);
+    assert.match(text, /^- `https:\/\/example\.com\/a # injected heading`$/m);
+    assert.match(text, /^- `x 'y' z`$/m);
+  });
+});
+
+describe('F7: isFieldRow is case-insensitive', () => {
+  it('fails a Field (…) candidate with a URL', () => {
+    const t = '## Pending\n\n### [ ] [score 4.0] T\n- source signals: Field (2026-10-27): see https://example.com/a\n';
+    assert.equal(checkFieldCandidates(t).length, 1);
+    assert.equal(checkFieldCandidates(t.replace('Field', 'FIELD')).length, 1);
   });
 });
