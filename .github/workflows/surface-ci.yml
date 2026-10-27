@@ -1,0 +1,32 @@
+name: surface-ci
+
+# Spec 64: a refine: or lessons: commit may edit only what
+# surface.json lists. Every pull request runs the surface leg over
+# merge-base(origin/<base>, HEAD)..HEAD, full depth, so a commit
+# beneath a merge is walked too. No paths filter: a skills-only
+# change is exactly what this guards.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: surface-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  surface:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node scripts/verify.mjs surface
+        env:
+          GITHUB_BASE_REF: ${{ github.base_ref }}

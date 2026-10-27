@@ -498,6 +498,7 @@ nexus/
 ├── package.json                       # the kit's own verify gate wiring
 ├── nexus.secrets.json                 # nexus's own secrets by name, never a value (customization/secrets.md)
 ├── kit.json                           # this fork's identity: repo, upstream, package, docs (scripts/kit-id.mjs prints a field)
+├── surface.json                       # the editable surface (spec 64): what a refine: or lessons: commit may touch, and the caps; the surface leg enforces it
 ├── assets/                            # generated SVG diagrams (scripts/diagrams.mjs); hand edits fail the gate
 │   ├── gifs/fleet-to-tug.gif          # the GUI in motion, recorded from a demo scenario (npm run record in packages/cli)
 │   └── gifs/fleet-to-tug.png          # its still poster, for readers who ask for less motion
@@ -532,6 +533,9 @@ nexus/
 │   ├── kit-id.mjs                     # reads kit.json; refs --write lowers kit-refs.json, the kit leg's ratchet on text naming upstream
 │   ├── kit-refs.json                  # files that still name upstream, at their counts; computed, only moves down
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
+│   ├── surface.mjs                        # the surface leg's checker: refine:/lessons: commits in origin/main..HEAD against surface.json
+│   ├── __tests__/surface.test.mjs         # its pure suite (scripts leg)
+│   ├── __tests__/surface-run.test.mjs     # its scratch-repo suite (scripts-git)
 │   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
 │   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)
 │   ├── plan/ui-rows.mjs               # /iterate's H rows: their shape, at most 3 Pending, and the magic guard on next
@@ -633,7 +637,7 @@ nexus/
 ├── plan/                              # nexus's OWN state files (specs + chunks, pending, archive, queues)
 ├── identity/                          # nexus's OWN identity layer: footguns.md (the ladder) + decisions/
 ├── .claude/                           # nexus's OWN commands + settings.json + guard and steer hooks
-├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + probe.yml (temporary: spec 55.6's latency probe)
+├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + surface-ci.yml (spec 64: the surface leg on every PR, full depth) + probe.yml (temporary: spec 55.6's latency probe)
 ├── packages/
 │   └── cli/                           # the GUI (kit.json package) for Claude Code (React+Vite; design/handoff/ is its UI source of truth; publish.yml ships it, cli-ci.yml tests it)
 └── templates/
@@ -776,6 +780,7 @@ nexus/
     │   ├── cloud/cadence.mjs          # the cadence presets (calm, steady, eager, sprint, off): NEXUS_CADENCE into ceiling, chain max, idle backoff, heartbeat hours; apply writes the cron; realized counts delivered slots
     │   ├── cloud/nudge-check.mjs      # nudge.yml's check: who starts a tick, the queue, NEXUS_EVENT_MAX; the one dispatch
     │   ├── pr/resolve.mjs             # pr-resolve's resolver: merge main into conflicted PRs
+    │   ├── pr/acceptance.mjs          # the judge's logic: proof lines in a PR body, each run; the parent replay of added tests (guard-test: excuses one)
     │   ├── design/ingest.mjs          # /design ingest: an export folder -> design/handoff/<date>/ + manifest.json (sha256 per file) + README; check, rehash
     │   ├── design/render.mjs          # a handoff's boards as PNGs at their size, night or dawn, via the installed Chrome (+ board-runtime.js)
     │   ├── design/compare.mjs         # a board PNG against the app's: the percent that differs, a diff PNG (+ png.mjs)
@@ -784,6 +789,8 @@ nexus/
     │   ├── upgrade-plan.mjs           # v1 to v2: shipped phases -> archive lines, pending -> spec stubs, blocked -> Held; dry run by default
     │   ├── ui-walk.mjs                # the site's UI: routes in Chrome at two viewports -> walk.json + PNGs; playwright-core or zero-dep CDP; anonymous; UI: none walks nothing
     │   ├── __tests__/loop-issue.test.mjs # unit tests, node:test, no devDeps
+    │   ├── __tests__/acceptance.test.mjs # the judge's logic: proof lines, missing or red proofs, the parent replay and guard-test; io faked
+    │   ├── __tests__/acceptance-run.test.mjs # the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree (scripts-git)
     │   ├── __tests__/plan-check.test.mjs # unit tests for plan-check.mjs
     │   ├── __tests__/pending.test.mjs # pending files, config, settled view
     │   ├── __tests__/settle.test.mjs  # settle's pure functions

@@ -49,7 +49,28 @@
   entries to `settings.json`'s `allow` list before your first
   unattended tick.
 - A GitHub repo (or GitLab/equivalent) — push to `main`
-  triggers deploy.
+  triggers deploy. A bare `git init` has no remote yet, and
+  the mode question (owner or contributor, step 2) reads the
+  remote to answer, so create or confirm it first, before
+  anything asks:
+
+  ```bash
+  git remote get-url origin
+  ```
+
+  A URL back means the remote exists: carry on. "No such
+  remote" means create it (`<name>` is the repo name; use
+  `--public` if it should be):
+
+  ```bash
+  gh repo create <name> --private --source . --remote origin
+  ```
+
+  That makes the repo under your account, so you own it and
+  the owner default holds. No `gh`, or no GitHub yet? Skip
+  it: with no remote, owner is the recommendation anyway
+  (nothing upstream to open a pull request against), and
+  you add `origin` before the first push.
 
 ---
 

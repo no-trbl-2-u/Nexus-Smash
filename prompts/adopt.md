@@ -79,6 +79,10 @@ Then:
     request); owner (Recommended) when the person owns the
     repo (`gh repo view --json viewerPermission` says ADMIN,
     or the remote's owner is theirs), contributor otherwise.
+    No GitHub remote yet (`git remote` prints nothing, so
+    `gh repo view` exits 1 with "no git remotes found"):
+    recommend owner, since a repo with no upstream has no one
+    to open a pull request to, and say so in the question.
     Ask them all before your first write, in one batch
     shaped per ../nexus/concepts/asking-well.md (two batches
     if more than four apply, both before the first write).
