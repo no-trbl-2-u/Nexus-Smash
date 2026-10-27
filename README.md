@@ -498,6 +498,7 @@ nexus/
 ├── package.json                       # the kit's own verify gate wiring
 ├── nexus.secrets.json                 # nexus's own secrets by name, never a value (customization/secrets.md)
 ├── kit.json                           # this fork's identity: repo, upstream, package, docs (scripts/kit-id.mjs prints a field)
+├── surface.json                       # the editable surface (spec 64): what a refine: or lessons: commit may touch, and the caps; the surface leg enforces it
 ├── assets/                            # generated SVG diagrams (scripts/diagrams.mjs); hand edits fail the gate
 │   ├── gifs/fleet-to-tug.gif          # the GUI in motion, recorded from a demo scenario (npm run record in packages/cli)
 │   └── gifs/fleet-to-tug.png          # its still poster, for readers who ask for less motion
@@ -532,6 +533,9 @@ nexus/
 │   ├── kit-id.mjs                     # reads kit.json; refs --write lowers kit-refs.json, the kit leg's ratchet on text naming upstream
 │   ├── kit-refs.json                  # files that still name upstream, at their counts; computed, only moves down
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
+│   ├── surface.mjs                        # the surface leg's checker: refine:/lessons: commits in origin/main..HEAD against surface.json
+│   ├── __tests__/surface.test.mjs         # its pure suite (scripts leg)
+│   ├── __tests__/surface-run.test.mjs     # its scratch-repo suite (scripts-git)
 │   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
 │   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)
 │   ├── plan/ui-rows.mjs               # /iterate's H rows: their shape, at most 3 Pending, and the magic guard on next
@@ -633,7 +637,7 @@ nexus/
 ├── plan/                              # nexus's OWN state files (specs + chunks, pending, archive, queues)
 ├── identity/                          # nexus's OWN identity layer: footguns.md (the ladder) + decisions/
 ├── .claude/                           # nexus's OWN commands + settings.json + guard and steer hooks
-├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + probe.yml (temporary: spec 55.6's latency probe)
+├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + surface-ci.yml (spec 64: the surface leg on every PR, full depth) + probe.yml (temporary: spec 55.6's latency probe)
 ├── packages/
 │   └── cli/                           # the GUI (kit.json package) for Claude Code (React+Vite; design/handoff/ is its UI source of truth; publish.yml ships it, cli-ci.yml tests it)
 └── templates/
