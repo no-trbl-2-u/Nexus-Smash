@@ -26,6 +26,7 @@ import { TRAIN, customUnits, fromJson, laneBlocks, mergeText, textOf, textOfProm
 import { kitDoc, launchLine } from '../shared/kit.mjs';
 import { MARCH_YML, SETUP_ACTION, fill, keptLine, mergeWorkflow, packageManager, setupAction } from './workflow-merge.mjs';
 import { modelAssist, renderSync, syncRepo } from './upgrade-sync.mjs';
+import { cloneBlobless, parseRepo } from './upgrade-remote.mjs';
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The CLI's bundled kit file set (scripts/bundle-kit.mjs writes it; templates/ layout plus files.json). */
@@ -571,13 +572,18 @@ export async function predict(dir, kit, { mode }) {
  * The dry run, start to end, on the repo at `repo` (any folder inside it). Returns { code, report } and never
  * throws for an expected stop. `keep` keeps the worktree even when the gate is green.
  */
-export async function upgrade({ repo, today = new Date().toISOString().slice(0, 10), kit = null, keep = false, keepWorkflow = false, write: commitIt = false, assist = null, base = null, gateOf = gate } = {}) {
-  const top = gitIn(repo, ['rev-parse', '--show-toplevel']);
-  if (!top.ok) return { code: 2, report: { error: `${repo} is not a git repository` } };
-  const root = path.resolve(top.out);
+export async function upgrade({ repo, today = new Date().toISOString().slice(0, 10), kit = null, keep = false, keepWorkflow = false, write: commitIt = false, assist = null, base = null, gateOf = gate, remote = null, cloneUrlOf } = {}) {
+  // `remote` (an owner/name): no checkout; a blobless temporary clone of that GitHub repo stands in for the worktree.
+  let root;
+  if (remote) root = remote;
+  else {
+    const top = gitIn(repo, ['rev-parse', '--show-toplevel']);
+    if (!top.ok) return { code: 2, report: { error: `${repo} is not a git repository` } };
+    root = path.resolve(top.out);
+  }
   let wt;
   try {
-    wt = freshWorktree(root);
+    wt = remote ? cloneBlobless(remote, { cloneUrl: cloneUrlOf }) : freshWorktree(root);
   } catch (e) {
     return { code: e.code || 2, report: { error: e.message } };
   }
@@ -588,6 +594,7 @@ export async function upgrade({ repo, today = new Date().toISOString().slice(0, 
     report.shape = shape.shape;
     report.why = shape.why;
     if (shape.shape === 'none') return { code: 2, report: { ...report, error: `not a nexus v1 repo: ${shape.why}` } };
+    if (remote && commitIt) return { code: 2, report: { ...report, error: '--write needs a checkout to leave a branch in; with --repo owner/name the result lives only in the temporary clone' } };
     if (commitIt && shape.shape !== 'v2') return { code: 2, report: { ...report, error: '--write on a v1 or half-done repo is not in this release yet; the dry run is (run it without --write)' } };
     kit = kit || await kitSource();
     if (!kit) return { code: 2, report: { ...report, error: 'no bundled kit (kit/upgrade/files.json) and no nexus templates/ beside the CLI' } };
@@ -764,6 +771,11 @@ export const UPGRADE_HELP = `nexus upgrade: move a nexus v1 repo (a phase plan) 
                                 v1 loop's behaviour), the predicted
                                 first dispatch and the loop mode
   nexus upgrade --repo <dir>    ...for another folder
+  nexus upgrade --repo owner/name
+                                ...for a repo on GitHub (or its URL),
+                                with no local checkout: a blobless
+                                temporary clone, the same report,
+                                the clone removed after
   nexus upgrade --json          the report as JSON
   nexus upgrade --keep-workflow leave .github/workflows/march.yml as
                                 it is; report what the merge into
@@ -803,9 +815,12 @@ export async function runUpgrade(argv, { out = (s) => process.stdout.write(`${s}
   const bad = argv.filter((a, k) => !known.has(a) && !(i >= 0 && k === i + 1));
   if (bad.length || (i >= 0 && !argv[i + 1])) { err(`nexus upgrade: unknown argument ${bad[0] ?? '--repo (needs a folder)'}\n\n${UPGRADE_HELP}`); return 2; }
   const repo = path.resolve(cwd, i >= 0 ? argv[i + 1] : '.');
-  if (!fs.existsSync(repo) || !fs.statSync(repo).isDirectory()) { err(`nexus upgrade: ${repo} is not a folder`); return 2; }
+  // A folder wins; else a GitHub repo (owner/name or its URL) is cloned, no checkout needed.
+  const folder = fs.existsSync(repo) && fs.statSync(repo).isDirectory();
+  const gh = !folder && i >= 0 ? parseRepo(argv[i + 1]) : null;
+  if (!folder && !gh) { err(`nexus upgrade: ${i >= 0 ? `${argv[i + 1]} is not a folder or a GitHub repo (owner/name or its URL)` : `${repo} is not a folder`}`); return 2; }
   const assist = argv.includes('--no-assist') ? null : (assistOf ? assistOf() : modelAssist());
-  const { code, report } = await upgrade({ repo, today, keepWorkflow: argv.includes('--keep-workflow'), write: argv.includes('--write'), assist, ...seams });
+  const { code, report } = await upgrade({ repo, remote: gh?.slug ?? null, today, keepWorkflow: argv.includes('--keep-workflow'), write: argv.includes('--write'), assist, ...seams });
   if (argv.includes('--json')) out(JSON.stringify({ code, ...report }, null, 2));
   else (code === 2 ? err : out)(render(report, { color }));
   return code;
