@@ -170,6 +170,7 @@ templates/
 │   ├── __tests__/settle.test.mjs      (settle's pure functions)
 │   ├── __tests__/settle-run.test.mjs  (settle end to end in a scratch git repo; slower, offline)
 │   ├── __tests__/claims-codec.test.mjs  (the claims rules, pure)
+│   ├── __tests__/board-codec.test.mjs  (the board's rules, pure: dedup, PATCH replacement, FAIL invalidation, the caps)
 │   ├── __tests__/claims-board.test.mjs  (the board's table and its one issue, with a fake gh; pure)
 │   ├── __tests__/push-policy.test.mjs  (the push policy, pure)
 │   ├── __tests__/progress.test.mjs    (the progress view, pure)

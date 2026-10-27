@@ -193,3 +193,134 @@ export function releaseFrom(map, ids, me, { force = false } = {}) {
   for (const id of gone) delete next[id];
   return { gone, kept, next: gone.length ? { map: next, message: `release ${gone.join(', ')} · ${me.who}@${me.host}` } : null };
 }
+
+// --- the board: board.json beside claims.json on the same branch (spec 62) -----------------------------------------
+// What sessions learned, as append-only entries: { id, type, chunk, by, session, at, text, detail?, count?, replaces?,
+// invalidates?, invalidated? }. The file is { v, seq, entries }; `seq` is the last id handed out, so an id is never
+// reused. Pure like the rest of this file: scripts/claims.mjs writes it over the same compare-and-swap.
+
+export const BOARD_FILE = 'board.json';
+/** The types a session may write. CLAIM mirrors claims.json and is read-only on the board. */
+export const BOARD_TYPES = ['OBSERVED', 'FACT', 'FAIL', 'PATCH'];
+/** Character caps on `text`; `detail` has none. */
+export const CAPS = { text: 100, PATCH: 300 };
+export const capOf = (type) => (type === 'PATCH' ? CAPS.PATCH : CAPS.text);
+
+export const emptyBoard = () => ({ v: 1, seq: 0, entries: [] });
+
+/** board.json's bytes: two-space JSON, a newline at the end. */
+export function serializeBoard(board) {
+  return `${JSON.stringify(board, null, 2)}\n`;
+}
+
+/** board.json's text as a board; an unreadable file throws, never reads as empty (the next write would wipe it). */
+export function parseBoard(text, where = '') {
+  let board;
+  try {
+    board = JSON.parse(text);
+  } catch (e) {
+    const why = e instanceof Error ? e.message.split('\n')[0] : String(e);
+    throw new Error(`claims: ${BOARD_FILE}${where ? ` at ${where}` : ''} can't be read (${why}); fix the branch, then retry.`);
+  }
+  if (!board || typeof board !== 'object' || !Array.isArray(board.entries)) throw new Error(`claims: ${BOARD_FILE}${where ? ` at ${where}` : ''} is not a board.`);
+  const seq = Number.isInteger(board.seq) ? board.seq : board.entries.reduce((n, e) => Math.max(n, Number(String(e.id).slice(1)) || 0), 0);
+  return { ...board, v: 1, seq };
+}
+
+const squash = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+/** Exact dedup's comparison: case, spacing and trailing punctuation do not make a new entry. */
+export const normalize = (s) => squash(s).toLowerCase().replace(/[.!;:,\s]+$/, '');
+
+const FILE_EXT = /\.(?:mjs|cjs|js|jsx|ts|tsx|json|md|py|rs|go|java|kt|rb|php|c|h|cc|cpp|hpp|cs|swift|sh|yml|yaml|toml|css|scss|html|sql|lock|txt)$/i;
+const ERROR_CLASS = /\b(?:[A-Z][A-Za-z0-9]*(?:Error|Exception)|ERR_[A-Z_]+|E(?:NOENT|ACCES|EXIST|PERM|BUSY|ISDIR|NOTDIR|MFILE|ADDRINUSE|CONNREFUSED|TIMEDOUT)|TS\d{4,5})\b/;
+
+/**
+ * The second dedup key, from a failure's words: file path + symbol + error class + test name, lowercase, joined by `|`.
+ * Language-neutral (paths by extension, errors by name, symbols in backticks or before a paren). null unless it names a
+ * file and at least one more of the three: a bare file or a bare error is too coarse to call two notes one.
+ */
+export function dedupKey(text) {
+  const s = squash(text);
+  const files = (s.match(/[\w@.\\/-]+(?::\d+){0,2}/g) ?? []).map((t) => t.replace(/(?::\d+)+$/, '').replace(/\.+$/, '')).filter((t) => (/[\\/]/.test(t) || FILE_EXT.test(t)) && /\.[A-Za-z]\w{0,5}$/.test(t));
+  const file = files[0]?.toLowerCase();
+  if (!file) return null;
+  const ticked = [...s.matchAll(/`([^`\s]+)`/g)].map((m) => m[1].replace(/\(\)$/, '')).filter((t) => !files.includes(t.replace(/(?::\d+)+$/, '')));
+  const symbol = (ticked[0] ?? /\b([A-Za-z_]\w*)\(/.exec(s)?.[1] ?? '').toLowerCase();
+  const error = (ERROR_CLASS.exec(s)?.[0] ?? '').toLowerCase();
+  const name = /\bnot ok \d+ - (.+?)(?:\s+[(#]|$)/.exec(s)?.[1] ?? /\b(?:test|it)\s+(["'])(.+?)\1/i.exec(s)?.[2] ?? '';
+  const parts = [file, symbol, error, normalize(name)].filter(Boolean);
+  return parts.length > 1 ? parts.join('|') : null;
+}
+
+/** Why a note may not be written, or null: its type, chunk, author, session, and the caps. `text` is judged collapsed to one line. */
+export function noteProblem(n) {
+  if (n.type === 'CLAIM') return 'CLAIM mirrors claims.json and is read-only on the board.';
+  if (!BOARD_TYPES.includes(n.type)) return `unknown type "${n.type}" (${BOARD_TYPES.join(', ')}).`;
+  if (!CHUNK_ID.test(String(n.chunk ?? ''))) return `"${n.chunk ?? ''}" is not a chunk id (e.g. 62.1).`;
+  if (!squash(n.by)) return 'by is empty: a note names its author.';
+  if (!squash(n.session)) return 'session is empty: a note names its session.';
+  const text = squash(n.text);
+  if (!text) return 'text is empty.';
+  if (text.length > capOf(n.type)) return `text is ${text.length} characters; the ${n.type} cap is ${capOf(n.type)} (put the rest in --detail).`;
+  return null;
+}
+
+/** An entry as a line of text: `(x3)` after a deduplicated one, `[invalidated]` after a PATCH a later FAIL struck. */
+export function render(e) {
+  return `${e.text}${e.count > 1 ? ` (x${e.count})` : ''}${e.invalidated ? ' [invalidated]' : ''}`;
+}
+
+/** The entries not replaced by a later PATCH of their author's: what a reader sees; the rest stay in the history. */
+export function live(entries) {
+  const gone = new Set(entries.map((e) => e.replaces).filter(Boolean));
+  return entries.filter((e) => !gone.has(e.id));
+}
+
+/**
+ * Write one note into `board` at `now`: { board (a new one), entry, outcome }. Throws when the note is refused.
+ *   duplicate  a FACT, OBSERVED or FAIL with the same normalized text (a FAIL also with the same dedup key) bumps the
+ *              first entry's `count`; the first entry, its author and its time stay.
+ *   replaced   a PATCH replaces its session's live PATCH for the same chunk (`replaces` names it); a PATCH never dedups.
+ *   added      anything else.
+ * A FAIL, added or a duplicate, marks the chunk's latest live PATCH `invalidated` (once), and a new one names it in
+ * `invalidates`.
+ */
+export function addNote(board, n, now) {
+  const problem = noteProblem(n);
+  if (problem) throw new Error(`board: ${problem}`);
+  const text = squash(n.text);
+  const entries = board.entries.map((e) => ({ ...e }));
+  const key = n.type === 'FAIL' ? dedupKey(text) : null;
+  const sameText = normalize(text);
+  const dup = n.type === 'PATCH' ? null : entries.find((e) => e.type === n.type && (normalize(e.text) === sameText || (key && dedupKey(e.text) === key)));
+  let entry;
+  let outcome;
+  let seq = board.seq;
+  if (dup) {
+    dup.count = (dup.count ?? 1) + 1;
+    if (n.detail && !dup.detail) dup.detail = n.detail;
+    entry = dup;
+    outcome = 'duplicate';
+  } else {
+    seq += 1;
+    entry = { id: `b${seq}`, type: n.type, chunk: n.chunk, by: squash(n.by), session: squash(n.session), at: new Date(now).toISOString(), text };
+    if (n.detail) entry.detail = n.detail;
+    outcome = 'added';
+    if (n.type === 'PATCH') {
+      const prev = live(entries).filter((e) => e.type === 'PATCH' && e.chunk === n.chunk && e.session === entry.session).pop();
+      if (prev) {
+        entry.replaces = prev.id;
+        outcome = 'replaced';
+      }
+    }
+    entries.push(entry);
+  }
+  if (n.type === 'FAIL') {
+    const patch = live(entries).filter((e) => e.type === 'PATCH' && e.chunk === n.chunk).pop();
+    if (patch && !patch.invalidated) {
+      patch.invalidated = true;
+      if (!dup) entry.invalidates = patch.id;
+    }
+  }
+  return { board: { ...board, v: 1, seq, entries }, entry, outcome };
+}

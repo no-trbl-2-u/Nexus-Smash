@@ -941,6 +941,8 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/pending.test.mjs',
   'templates/scripts/__tests__/settle.test.mjs',
   'templates/scripts/__tests__/claims-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
   'templates/scripts/__tests__/claims-board.test.mjs',
   'templates/scripts/__tests__/push-policy.test.mjs',
   'templates/scripts/__tests__/progress.test.mjs',
