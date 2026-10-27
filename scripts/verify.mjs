@@ -1119,7 +1119,38 @@ async function legWorkflows() {
   const failures = problems.map((p) => { const m = /^(.*?\.ya?ml)(:.*)$/s.exec(p); return m ? normalize(path.relative(ROOT, m[1])) + m[2] : p })
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
-  return { failures, note: `${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...nodeActionMajorsCheck())
+  return { failures, note: `${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// 39.11 (A12): no workflow or composite action pins a first-party
+// action on a Node 20 major. GitHub is retiring the Node 20 runtime,
+// and every run of an old major warns that it targets it. Each entry
+// is the oldest major whose action.yml says `using: node24`
+// (checked against the action's repo); a sub-path such as
+// cache/restore counts as its action.
+const NODE24_MAJORS = {
+  checkout: 5,
+  'setup-node': 5,
+  cache: 5,
+  'upload-artifact': 6,
+  'download-artifact': 7,
+  'create-github-app-token': 3,
+}
+function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.github/actions', 'templates/.github/workflows', 'templates/.github/actions']) {
+  const failures = []
+  for (const dir of dirs) {
+    const abs = path.join(ROOT, dir)
+    if (!fs.existsSync(abs)) continue
+    for (const file of walkFiles(abs).filter((f) => /\.ya?ml$/.test(f))) {
+      const rel = normalize(path.relative(ROOT, file))
+      readFile(rel).split(/\r?\n/).forEach((line, i) => {
+        const m = /\buses:\s*actions\/([a-z-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
+        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: actions/${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
+      })
+    }
+  }
+  return failures
 }
 
 // Spec 54: the event tick. templates/.github/workflows/nudge.yml
