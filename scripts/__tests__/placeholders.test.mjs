@@ -59,3 +59,24 @@ describe('scanSettled', () => {
     assert.deepEqual(scanSettled(ok, ['plan/07-x.md'], rules).failures, []);
   });
 });
+
+describe('scanSettled reads pending text only through the settled view', () => {
+  const tracked = ['plan/07-x.md', 'plan/pending/p.md'];
+  it('reports a pending Add\'s unknown token exactly once, against the settled spec path', () => {
+    const root = fixture({ 'plan/07-x.md': SPEC, 'plan/pending/p.md': add('Row for <BOGUS_TOKEN>.') });
+    const { failures } = scanSettled(root, tracked, rules);
+    assert.equal(failures.length, 1, failures.join('\n'));
+    assert.match(failures[0], /^plan\/07-x\.md:\d+: unknown placeholder <BOGUS_TOKEN>/);
+  });
+  it('passes a pending Edit whose old text holds a bad token and whose new text is clean', () => {
+    const root = fixture({
+      'plan/07-x.md': `${SPEC}\nOne <BOGUS_TOKEN>.\n`,
+      'plan/pending/p.md': `${head}## Edit plan/07-x.md\n~~~ old\nOne <BOGUS_TOKEN>.\n~~~\n~~~ new\nOne <PROJECT>.\n~~~\n`,
+    });
+    assert.deepEqual(scanSettled(root, tracked, rules).failures, []);
+  });
+  it('still scans plan/pending/README.md raw', () => {
+    const root = fixture({ 'plan/pending/README.md': 'doc <BOGUS_TOKEN>\n' });
+    assert.equal(scanSettled(root, ['plan/pending/README.md'], rules).failures.length, 1);
+  });
+});

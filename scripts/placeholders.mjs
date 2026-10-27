@@ -36,7 +36,9 @@ export function scanPlaceholders(names, read, { vocabulary, retired, retiredHome
  * file that won't settle is a failure of its own here only when it breaks the scan; the chunks leg names those.
  */
 export function scanSettled(root, tracked, rules, view = settledView(root)) {
-  const names = [...tracked];
+  // Pending files are read only through the view: raw, their Add text would report twice and an Edit's old text would
+  // keep a token the edit removes. plan/pending/README.md is documentation and stays raw.
+  const names = tracked.filter((f) => !/^plan\/pending\/(?!README\.md$)/.test(f.split(String.fromCharCode(92)).join('/')));
   for (const q of view.changed) if (q.endsWith('.md') && !names.includes(q)) names.push(q);
   return scanPlaceholders(names, (rel) => view.read(rel) ?? '', rules);
 }
