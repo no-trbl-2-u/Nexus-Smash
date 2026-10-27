@@ -11,9 +11,11 @@
 // (playbooks/upgrade.md Step 5), rewrites v1 references outside history files, flips the lock, runs
 // plan-check, its test and workflow-lint, plays march's pick order forward for the first dispatch, and reports. A dry run removes the worktree; a red gate keeps it and prints its path.
 //
-//   nexus upgrade [--repo <dir>] [--json] [--keep-workflow]
+// A v2 repo goes to the sync instead (upgrade-sync.mjs): three-way, against the kit at the lock's ref:.
 //
-// Exit 0: the report printed (a v2 repo: "already on v2"). Exit 1: the gate failed (worktree kept). Exit 2: not a
+//   nexus upgrade [--repo <dir>] [--json] [--keep-workflow] [--write (v2)] [--no-assist (v2)]
+//
+// Exit 0: the report printed (a v2 repo: synced, or already on the latest kit). Exit 1: the gate failed (worktree kept). Exit 2: not a
 // v1 or half-done repo, no origin, or a flag this release does not carry yet.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -23,6 +25,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TRAIN, customUnits, fromJson, laneBlocks, mergeText, textOf, textOfPrompt, toJson } from './kit-text.mjs';
 import { kitDoc, launchLine } from '../shared/kit.mjs';
 import { MARCH_YML, SETUP_ACTION, fill, keptLine, mergeWorkflow, packageManager, setupAction } from './workflow-merge.mjs';
+import { modelAssist, renderSync, syncRepo } from './upgrade-sync.mjs';
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The CLI's bundled kit file set (scripts/bundle-kit.mjs writes it; templates/ layout plus files.json). */
@@ -432,7 +435,7 @@ const knobLine = (key) => new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?[*\`]*${key.replac
  * where status is `written`, `kept` (with the repo's value), `unset` (a var left unset) or `set` (a var to set,
  * `line` the gh command).
  */
-export function writeKnobs(bearings, { today, registry = KNOBS } = {}) {
+export function writeKnobs(bearings, { today, registry = KNOBS, why = 'keep the v1 loop\'s\nbehaviour' } = {}) {
   const text = String(bearings ?? '').replace(/\r\n/g, '\n');
   const plain = text.replace(/<!--[\s\S]*?-->/g, '');
   const knobs = [];
@@ -460,7 +463,7 @@ export function writeKnobs(bearings, { today, registry = KNOBS } = {}) {
   }
   const blocks = [];
   if (lines.length) {
-    blocks.push(`## Loop knobs\n\nWritten by \`nexus upgrade\`${today ? ` (${today})` : ''} at the values that keep the v1 loop's\nbehaviour. Turn each up on its own, later: \`Support:\`\n(\`nexus/customization/support.md\`), \`Promote:\` and \`stall_action\`\n(aged promotion, the motion heartbeat), \`loop:\` (\`/iterate\` dimension\nI), \`UI:\` (the browser walk).\n\n${lines.join('\n').replace(/^\n/, '')}`);
+    blocks.push(`## Loop knobs\n\nWritten by \`nexus upgrade\`${today ? ` (${today})` : ''} at the values that ${why}. Turn each up on its own, later: \`Support:\`\n(\`nexus/customization/support.md\`), \`Promote:\` and \`stall_action\`\n(aged promotion, the motion heartbeat), \`loop:\` (\`/iterate\` dimension\nI), \`UI:\` (the browser walk).\n\n${lines.join('\n').replace(/^\n/, '')}`);
   }
   if (generators) blocks.push('## Generators\n\nWhen no chunk is ready, `/march`\'s stock `refill` lane runs each\ngenerator listed here (`nexus/concepts/generators.md`). None listed\nmeans refill is a no-op.\n\n- (none)');
   if (!blocks.length) return { text, knobs };
@@ -568,7 +571,7 @@ export async function predict(dir, kit, { mode }) {
  * The dry run, start to end, on the repo at `repo` (any folder inside it). Returns { code, report } and never
  * throws for an expected stop. `keep` keeps the worktree even when the gate is green.
  */
-export async function upgrade({ repo, today = new Date().toISOString().slice(0, 10), kit = null, keep = false, keepWorkflow = false } = {}) {
+export async function upgrade({ repo, today = new Date().toISOString().slice(0, 10), kit = null, keep = false, keepWorkflow = false, write: commitIt = false, assist = null, base = null, gateOf = gate } = {}) {
   const top = gitIn(repo, ['rev-parse', '--show-toplevel']);
   if (!top.ok) return { code: 2, report: { error: `${repo} is not a git repository` } };
   const root = path.resolve(top.out);
@@ -584,10 +587,17 @@ export async function upgrade({ repo, today = new Date().toISOString().slice(0, 
     const shape = detect(wt.dir);
     report.shape = shape.shape;
     report.why = shape.why;
-    if (shape.shape === 'v2') return { code: 0, report: { ...report, message: 'already on v2' } };
     if (shape.shape === 'none') return { code: 2, report: { ...report, error: `not a nexus v1 repo: ${shape.why}` } };
+    if (commitIt && shape.shape !== 'v2') return { code: 2, report: { ...report, error: '--write on a v1 or half-done repo is not in this release yet; the dry run is (run it without --write)' } };
     kit = kit || await kitSource();
     if (!kit) return { code: 2, report: { ...report, error: 'no bundled kit (kit/upgrade/files.json) and no nexus templates/ beside the CLI' } };
+    if (shape.shape === 'v2') {
+      // v2 to latest: the three-way sync (upgrade-sync.mjs). A red gate keeps the worktree, as the v1 path does.
+      const s = await syncRepo({ dir: wt.dir, kit, base, write: commitIt, assist, today, gateOf, branch: wt.branch });
+      Object.assign(report, s.report, { dry: !s.report.commit });
+      red = s.code === 1;
+      return { code: s.code, report };
+    }
     const kitFiles = new Set(kit.files.map((f) => f.repo));
 
     if (shape.shape === 'v1') {
@@ -670,6 +680,7 @@ const RED = (on) => (s) => (on ? `\u001b[31m${s}\u001b[0m` : s);
 export function render(report, { color = false } = {}) {
   const red = RED(color);
   if (report.error && !report.shape) return `nexus upgrade: ${report.error}`;
+  if (report.shape === 'v2') return renderSync(report, { color });
   const out = [];
   const o = report.origin;
   out.push('nexus upgrade: dry run (nothing written; the local checkout is not touched)');
@@ -758,7 +769,20 @@ export const UPGRADE_HELP = `nexus upgrade: move a nexus v1 repo (a phase plan) 
                                 it is; report what the merge into
                                 the v2 owner job would keep
 
-  Exit 0: the report printed (a v2 repo: already on v2). Exit 1: the
+  On a v2 repo the same command syncs it to the kit this CLI carries:
+  a kit file the repo never changed is replaced, a customised one is
+  three-way merged against the kit at the lock's ref:, a conflict goes
+  to an assisted merge (a helper-model session; shown as a diff and
+  kept only when the repo's gate is green with it), new kit content is
+  added with new knobs at their conservative values, and lanes files
+  and custom skills are never touched.
+  nexus upgrade --write         (v2) commit the sync as one commit,
+                                plan: sync to nexus <version>, on
+                                nexus/upgrade-<version>
+  nexus upgrade --no-assist     (v2) no helper model: a conflict stays
+                                as the repo's file, its diff listed
+
+  Exit 0: the report printed (or the sync committed). Exit 1: the
   gate failed (the worktree is kept and its path printed). Exit 2: not a
   v1 repo, no origin, or a flag this release does not carry yet.
 
@@ -767,20 +791,21 @@ export const UPGRADE_HELP = `nexus upgrade: move a nexus v1 repo (a phase plan) 
   The runbook: ${kitDoc('playbooks/upgrade.md')}`;
 
 /** Flags spec 58 names that a later release carries: refused here rather than ignored. */
-export const LATER = Object.freeze(['--write', '--land', '--rollback', '--pr', '--no-pause', '--no-watch']);
+export const LATER = Object.freeze(['--land', '--rollback', '--pr', '--no-pause', '--no-watch']);
 
 /** `nexus upgrade <args>`: the exit code. */
-export async function runUpgrade(argv, { out = (s) => process.stdout.write(`${s}\n`), err = (s) => process.stderr.write(`${s}\n`), cwd = process.cwd(), color = process.stdout.isTTY && !process.env.NO_COLOR, today } = {}) {
+export async function runUpgrade(argv, { out = (s) => process.stdout.write(`${s}\n`), err = (s) => process.stderr.write(`${s}\n`), cwd = process.cwd(), color = process.stdout.isTTY && !process.env.NO_COLOR, today, assistOf = null, seams = {} } = {}) {
   if (argv.includes('--help') || argv.includes('-h')) { out(UPGRADE_HELP); return 0; }
   const later = argv.filter((a) => LATER.includes(a));
   if (later.length) { err(`nexus upgrade: ${later.join(', ')} ${later.length === 1 ? 'is' : 'are'} not in this release yet; the dry run is (run it with no flags)`); return 2; }
-  const known = new Set(['--repo', '--json', '--keep-workflow']);
+  const known = new Set(['--repo', '--json', '--keep-workflow', '--write', '--no-assist']);
   const i = argv.indexOf('--repo');
   const bad = argv.filter((a, k) => !known.has(a) && !(i >= 0 && k === i + 1));
   if (bad.length || (i >= 0 && !argv[i + 1])) { err(`nexus upgrade: unknown argument ${bad[0] ?? '--repo (needs a folder)'}\n\n${UPGRADE_HELP}`); return 2; }
   const repo = path.resolve(cwd, i >= 0 ? argv[i + 1] : '.');
   if (!fs.existsSync(repo) || !fs.statSync(repo).isDirectory()) { err(`nexus upgrade: ${repo} is not a folder`); return 2; }
-  const { code, report } = await upgrade({ repo, today, keepWorkflow: argv.includes('--keep-workflow') });
+  const assist = argv.includes('--no-assist') ? null : (assistOf ? assistOf() : modelAssist());
+  const { code, report } = await upgrade({ repo, today, keepWorkflow: argv.includes('--keep-workflow'), write: argv.includes('--write'), assist, ...seams });
   if (argv.includes('--json')) out(JSON.stringify({ code, ...report }, null, 2));
   else (code === 2 ? err : out)(render(report, { color }));
   return code;
