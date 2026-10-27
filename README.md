@@ -776,6 +776,7 @@ nexus/
     │   ├── cloud/cadence.mjs          # the cadence presets (calm, steady, eager, sprint, off): NEXUS_CADENCE into ceiling, chain max, idle backoff, heartbeat hours; apply writes the cron; realized counts delivered slots
     │   ├── cloud/nudge-check.mjs      # nudge.yml's check: who starts a tick, the queue, NEXUS_EVENT_MAX; the one dispatch
     │   ├── pr/resolve.mjs             # pr-resolve's resolver: merge main into conflicted PRs
+    │   ├── pr/acceptance.mjs          # the judge's logic: proof lines in a PR body, each run; the parent replay of added tests (guard-test: excuses one)
     │   ├── design/ingest.mjs          # /design ingest: an export folder -> design/handoff/<date>/ + manifest.json (sha256 per file) + README; check, rehash
     │   ├── design/render.mjs          # a handoff's boards as PNGs at their size, night or dawn, via the installed Chrome (+ board-runtime.js)
     │   ├── design/compare.mjs         # a board PNG against the app's: the percent that differs, a diff PNG (+ png.mjs)
@@ -784,6 +785,8 @@ nexus/
     │   ├── upgrade-plan.mjs           # v1 to v2: shipped phases -> archive lines, pending -> spec stubs, blocked -> Held; dry run by default
     │   ├── ui-walk.mjs                # the site's UI: routes in Chrome at two viewports -> walk.json + PNGs; playwright-core or zero-dep CDP; anonymous; UI: none walks nothing
     │   ├── __tests__/loop-issue.test.mjs # unit tests, node:test, no devDeps
+    │   ├── __tests__/acceptance.test.mjs # the judge's logic: proof lines, missing or red proofs, the parent replay and guard-test; io faked
+    │   ├── __tests__/acceptance-run.test.mjs # the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree (scripts-git)
     │   ├── __tests__/plan-check.test.mjs # unit tests for plan-check.mjs
     │   ├── __tests__/pending.test.mjs # pending files, config, settled view
     │   ├── __tests__/settle.test.mjs  # settle's pure functions
