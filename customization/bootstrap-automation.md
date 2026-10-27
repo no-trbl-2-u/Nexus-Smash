@@ -770,7 +770,7 @@ auth's accessible resources.
   the lockfile exists. Gate with
   `cache: ${{ hashFiles('pnpm-lock.yaml') != '' && 'pnpm' || '' }}`.
 - **`packageManager` in `package.json` is required for
-  `pnpm/action-setup@v4`.** Without it the action errors
+  `pnpm/action-setup@v6`.** Without it the action errors
   with "No pnpm version specified." Bootstrap should
   ensure package.json has the field (or the workflow
   inlines `version:`).
