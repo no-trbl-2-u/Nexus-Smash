@@ -111,6 +111,16 @@ function main() {
   if (!copyCmd) failures.push('could not find the "### Copy" fenced bash block in playbooks/new-project.md')
   if (!sweepCmd) failures.push('could not find the "### Replace placeholders" fenced bash block in playbooks/new-project.md')
   if (!pruneCmd) failures.push('could not find the "### Prune adopt-by-need files" fenced bash block in playbooks/new-project.md')
+  // A16: adoption works before a GitHub remote exists. The
+  // playbook creates or confirms the remote ahead of the mode
+  // question; the adopt prompt falls back to owner without one.
+  if (!/git remote get-url origin/.test(doc) || !/gh repo create \S+ --\w+ --source \. --remote origin/.test(doc)) {
+    failures.push('playbooks/new-project.md lost its create-or-confirm-the-remote step (git remote get-url origin / gh repo create ... --remote origin)')
+  }
+  const adoptPrompt = fs.readFileSync(path.join(ROOT, 'prompts/adopt.md'), 'utf-8').replace(/\s+/g, ' ')
+  if (!/No GitHub remote yet[^.]*: recommend owner/.test(adoptPrompt)) {
+    failures.push('prompts/adopt.md lost its no-remote fallback to owner in the mode question (e)')
+  }
   if (failures.length) {
     failures.forEach((f) => console.error(`adopt-dryrun: ${f}`))
     process.exit(1)
