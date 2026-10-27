@@ -1025,6 +1025,7 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/heartbeat-realized.test.mjs',
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
+  'scripts/__tests__/improve.test.mjs',
 ]
 
 // nexus runs these scripts on its own plan (npm run settle, npm run
@@ -1033,7 +1034,7 @@ const GIT_SUITES = [
 const DOGFOOD_TWINS = [
   'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'git/push-policy.mjs',
   'plan/pending.mjs', 'plan/settle.mjs', 'plan/settled.mjs', 'plan/config.mjs', 'plan/footguns.mjs',
-  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs',
+  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs',
   'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',
   'upgrade-plan.mjs', 'plan/secrets-manifest.mjs', 'secrets.mjs', 'secrets-vault.mjs', 'secrets-keychain.mjs', 'secrets-sinks.mjs',
   'secrets-audit.mjs',
