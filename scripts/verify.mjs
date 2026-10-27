@@ -456,31 +456,16 @@ const RETIRED_PLACEHOLDERS = new Map([
 ])
 const RETIRED_PLACEHOLDER_HOME = 'playbooks/upgrade.md'
 
-function legPlaceholders(files) {
-  const failures = []
-  let seen = 0
-  const tokenRe = /<[A-Z][A-Z0-9_]*(?: [A-Z][A-Z0-9_]*)*>/g
-  for (const file of files) {
-    const lines = read(file).split(/\r?\n/)
-    lines.forEach((line, i) => {
-      let m
-      while ((m = tokenRe.exec(line)) !== null) {
-        seen++
-        if (RETIRED_PLACEHOLDERS.has(m[0])) {
-          if (file.replace(/\\/g, '/') !== RETIRED_PLACEHOLDER_HOME) {
-            failures.push(
-              `${file}:${i + 1}: ${m[0]} was renamed ${RETIRED_PLACEHOLDERS.get(m[0])} — only ${RETIRED_PLACEHOLDER_HOME} may name the old one`,
-            )
-          }
-        } else if (!PLACEHOLDER_VOCABULARY.has(m[0])) {
-          failures.push(
-            `${file}:${i + 1}: unknown placeholder ${m[0]} — typo, or add it to PLACEHOLDER_VOCABULARY in scripts/verify.mjs`,
-          )
-        }
-      }
-    })
-  }
-  return { failures, note: `${seen} placeholder tokens` }
+async function legPlaceholders(files) {
+  // Read as settled: text a pending `## Add` / `## Edit` brings in counts now (scripts/placeholders.mjs).
+  const { scanSettled } = await import(pathToFileURL(path.join(ROOT, 'scripts/placeholders.mjs')).href)
+  const { failures, seen } = scanSettled(ROOT, files, {
+    vocabulary: PLACEHOLDER_VOCABULARY,
+    retired: RETIRED_PLACEHOLDERS,
+    retiredHome: RETIRED_PLACEHOLDER_HOME,
+  })
+  const suite = runSuites(['scripts/__tests__/placeholders.test.mjs'], 'checker')
+  return { failures: [...failures, ...suite.failures], note: `${seen} placeholder tokens, read as settled` }
 }
 
 // --- leg: anatomy ---------------------------------------------------------
@@ -1025,6 +1010,7 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/heartbeat-realized.test.mjs',
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
+  'scripts/__tests__/improve.test.mjs',
 ]
 
 // nexus runs these scripts on its own plan (npm run settle, npm run
@@ -1033,7 +1019,7 @@ const GIT_SUITES = [
 const DOGFOOD_TWINS = [
   'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'git/push-policy.mjs',
   'plan/pending.mjs', 'plan/settle.mjs', 'plan/settled.mjs', 'plan/config.mjs', 'plan/footguns.mjs',
-  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs',
+  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs',
   'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',
   'upgrade-plan.mjs', 'plan/secrets-manifest.mjs', 'secrets.mjs', 'secrets-vault.mjs', 'secrets-keychain.mjs', 'secrets-sinks.mjs',
   'secrets-audit.mjs',
