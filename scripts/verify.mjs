@@ -137,6 +137,14 @@
 //                 rose, or one that fell while the list stayed is
 //                 red (lower it with node scripts/kit-id.mjs refs
 //                 --write), so the list only moves down
+//   surface       the editable surface (spec 64, surface.json): a
+//                 commit whose subject starts refine: or lessons:
+//                 in origin/main..HEAD (HEAD alone when empty)
+//                 fails when it touches a denied or unlisted path,
+//                 a bearings section the list does not name, or
+//                 adds more characters to a file than its cap; a
+//                 briefed chunk's commit is not inspected
+//                 (scripts/surface.mjs)
 //   scripts-git   opt-in — the same scripts end to end in scratch git
 //                 repos in the temp folder (offline, but every case
 //                 spawns git, so tens of seconds), and heartbeat.yml's
@@ -979,6 +987,7 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/design-port.test.mjs',
   'templates/scripts/__tests__/support.test.mjs',
   'templates/scripts/__tests__/ui-walk.test.mjs',
+  'templates/scripts/__tests__/acceptance.test.mjs',
   'scripts/__tests__/url-path-lint.test.mjs',
   'scripts/__tests__/bare-push.test.mjs',
   'scripts/__tests__/probe-latency.test.mjs',
@@ -992,6 +1001,7 @@ const PURE_SUITES = [
   'scripts/__tests__/release-reply.test.mjs',
   'scripts/__tests__/kit-id.test.mjs',
   'scripts/__tests__/adopt-check.test.mjs',
+  'scripts/__tests__/surface.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
@@ -1009,8 +1019,10 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/heartbeat-motion.test.mjs',
   'templates/scripts/__tests__/heartbeat-realized.test.mjs',
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
+  'templates/scripts/__tests__/acceptance-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
   'scripts/__tests__/improve.test.mjs',
+  'scripts/__tests__/surface-run.test.mjs',
 ]
 
 // nexus runs these scripts on its own plan (npm run settle, npm run
@@ -1028,6 +1040,7 @@ const DOGFOOD_TWINS = [
   'design/ingest.mjs',
   'design/png.mjs', 'design/compare.mjs', 'design/render.mjs', 'design/board-runtime.js',
   'design/port-map.mjs', 'design/port.workflow.js',
+  'pr/acceptance.mjs',
 ]
 // The steer hook runs in nexus's own sessions from .claude/hooks/, byte for byte the one adopters copy.
 const HOOK_TWINS = ['steer.mjs']
@@ -1120,7 +1133,27 @@ async function legWorkflows() {
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
   failures.push(...nodeActionMajorsCheck())
-  return { failures, note: `${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...prFlowCheck())
+  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.
+// Both pr-flow.yml copies carry a step gated on merged == true and a
+// nexus/ head ref that deletes the ref, and the two are twins.
+function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROOT, f))) {
+  const failures = []
+  const files = ['.github/workflows/pr-flow.yml', 'templates/.github/workflows/pr-flow.yml']
+  const texts = []
+  for (const file of files) {
+    if (!exists(file)) { failures.push(`${file}: missing (pr-flow releases claims and deletes merged loop branches)`); continue }
+    const text = readFile(file).replace(/\r\n/g, '\n')
+    texts.push(text)
+    const i = text.indexOf('Delete the merged loop branch')
+    const step = i < 0 ? '' : text.slice(i)
+    if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
+  }
+  if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
+  return failures
 }
 
 // 39.11 (A12): no workflow or composite action pins a first-party
@@ -1377,6 +1410,20 @@ function legAdoptDryrun() {
   }
 }
 
+// --- leg: surface ------------------------------------------------------------
+// Spec 64: surface.json names what a refine: or lessons: commit may edit
+// about the loop itself. The leg walks origin/main..HEAD (HEAD alone when
+// that is empty) and fails a surface-bound commit that touches a denied or
+// unlisted path or goes over a cap; a briefed chunk's commit is not inspected.
+
+async function legSurface() {
+  const { loadSurface, checkRange } = await import(pathToFileURL(path.join(ROOT, 'scripts/surface.mjs')).href)
+  const { surface, problems } = loadSurface(ROOT)
+  if (!surface) return { failures: problems, note: 'see failures' }
+  const res = checkRange(ROOT, surface)
+  return { failures: res.failures, note: `${res.checked} commit(s) walked, ${res.bound} refine:/lessons: checked against surface.json` }
+}
+
 // --- leg: design -------------------------------------------------------------
 // Opt-in, like adopt-dryrun: the handoff and its port map change only
 // with a delivery or a port, so the default pass skips the hashing.
@@ -1411,6 +1458,7 @@ const LEGS = {
   upgrade: () => legUpgrade(),
   'state-size': () => legStateSize(),
   kit: () => legKit(),
+  surface: () => legSurface(),
   'scripts-git': () => runSuites(GIT_SUITES, 'end-to-end'),
   'adopt-dryrun': () => legAdoptDryrun(),
   design: () => legDesign(),

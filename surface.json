@@ -1,0 +1,24 @@
+{
+  "comment": "caps count characters added to a file, summed over every refine:/lessons: commit in the range; path#Heading allows one ## section only",
+  "allow": [
+    "skills/*.lanes.md",
+    "skills/*.md",
+    "identity/footguns.md",
+    "plan/bearings.md#Generators",
+    "plan/bearings.md#Plan expansion posture"
+  ],
+  "deny": [
+    ".claude/hooks/**",
+    ".claude/settings.json",
+    ".github/**",
+    "scripts/verify.mjs",
+    "scripts/pr/**",
+    "agents.md"
+  ],
+  "caps": {
+    "skills/*.lanes.md": 4000,
+    "skills/*.md": 6000,
+    "identity/footguns.md": 1500,
+    "plan/bearings.md": 3000
+  }
+}
