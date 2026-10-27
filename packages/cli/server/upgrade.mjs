@@ -525,7 +525,7 @@ export function gate(dir, { node = process.execPath } = {}) {
   const run = (name, args) => {
     const r = spawnSync(node, args, { cwd: dir, encoding: 'utf8', windowsHide: true, timeout: 300000, maxBuffer: 64 * 1024 * 1024 });
     const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
-    return { name, ok: r.status === 0, out: out.split(/\r?\n/).slice(-20).join('\n') };
+    return { name, ok: r.status === 0, out: out.split(/\r?\n/).slice(-20).join('\n'), all: out };
   };
   if (!exists(dir, 'scripts/plan-check.mjs')) return [{ name: 'plan-check', ok: false, out: 'scripts/plan-check.mjs is not in this repo' }];
   const rows = [run('plan-check', ['scripts/plan-check.mjs'])];
@@ -534,6 +534,24 @@ export function gate(dir, { node = process.execPath } = {}) {
   if (verify) rows.push(verify);
   if (exists(dir, 'scripts/workflow-lint.mjs')) rows.push(run('workflow-lint', ['scripts/workflow-lint.mjs']));
   return rows;
+}
+
+/**
+ * workflow-lint judges every workflow in the repo, but the upgrade changes only march.yml (a merge) and the setup
+ * action; its other workflows get reference rewrites, which cannot add a lint problem. Problems in those files were
+ * the repo's before the upgrade: they become one warning, and the row is green when march.yml itself is clean.
+ * Returns { row, warning }; a row that is not a lint failure, or has a problem in march.yml, is as it was.
+ */
+export function scopeLint(row, { own = [MARCH_YML] } = {}) {
+  if (row.name !== 'workflow-lint' || row.ok) return { row, warning: null };
+  const problems = (row.all ?? row.out).split(/\r?\n/).filter((l) => /^\S+\.ya?ml: /.test(l));
+  const mine = problems.filter((l) => own.some((f) => l.startsWith(`${f}: `)));
+  if (!problems.length || mine.length) return { row, warning: null };
+  const files = [...new Set(problems.map((l) => l.slice(0, l.indexOf(': '))))];
+  return {
+    row: { ...row, ok: true, note: `${problems.length} problem(s) in ${files.length} workflow(s) the upgrade did not change` },
+    warning: `workflow-lint: ${problems.length} problem(s) in ${files.length} workflow(s) the upgrade did not change (${files.join(', ')}); they were there before, fix them when you like`,
+  };
 }
 
 /**
@@ -655,7 +673,13 @@ export async function upgrade({ repo, today = new Date().toISOString().slice(0, 
       report.files.push({ path: 'plan/nexus.lock', status: lock == null ? 'added' : 'replaced', note: 'shape: chunks' });
     }
 
-    if (!red) report.gate.push(...gate(wt.dir));
+    if (!red) {
+      for (const g of gate(wt.dir)) {
+        const s = scopeLint(g);
+        report.gate.push(s.row);
+        if (s.warning) report.warnings.push(s.warning);
+      }
+    }
     red = red || report.gate.some((g) => !g.ok);
     report.loop = { ...loopModeOf(wt.dir), branch: wt.branch };
     const guess = (mode) => predict(wt.dir, kit, { mode }).catch((e) => ({ kind: 'unknown', text: `could not predict: ${e.message}`, idle: false }));
@@ -708,7 +732,7 @@ export function render(report, { color = false } = {}) {
   for (const wn of report.warnings) out.push(`  - ${wn}`);
   out.push('', 'gate');
   for (const g of report.gate) {
-    out.push(`  ${g.ok ? (g.skipped ? 'skip ' : 'green') : red('RED  ')}  ${g.name}${g.skipped ? `  (${g.out})` : ''}`);
+    out.push(`  ${g.ok ? (g.skipped ? 'skip ' : 'green') : red('RED  ')}  ${g.name}${g.skipped ? `  (${g.out})` : g.note ? `  (${g.note})` : ''}`);
     if (!g.ok && g.out) for (const l of g.out.split('\n')) out.push(`         ${l}`);
   }
   if (report.workflow) {

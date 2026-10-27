@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { kitSource, upgrade, rewriteText, render, repoVerify } from '../server/upgrade.mjs';
+import { kitSource, upgrade, rewriteText, render, repoVerify, scopeLint } from '../server/upgrade.mjs';
 import { sections } from '../server/kit-text.mjs';
 import { editorialV1, marchYml, git, put, commit, state, PHASES } from './helpers/editorial-v1.mjs';
 
@@ -172,4 +172,18 @@ test('the repo\'s own verify joins the gate: absent is no row, a red script is r
   put(d, 'package.json', '{ "scripts": { "verify": "vitest" }, "devDependencies": { "vitest": "1" } }');
   const s = repoVerify(d);
   assert.ok(s.ok && s.skipped, JSON.stringify(s));
+});
+
+test('workflow-lint problems in workflows the upgrade did not change are a warning; one in march.yml stays red', () => {
+  const lint = (lines) => ({ name: 'workflow-lint', ok: false, out: lines.join('\n') });
+  const other = '.github/workflows/pr-review.yml: jobs.<id>.env reads github.token (a token is a secret)';
+  const mine = '.github/workflows/march.yml: jobs.<id>.env reads secrets in ${{ secrets.X }}';
+  const a = scopeLint(lint(['workflow-lint: 2 file(s), 2 problem(s)', other, other]));
+  assert.ok(a.row.ok);
+  assert.match(a.warning, /2 problem\(s\) in 1 workflow\(s\) the upgrade did not change \(\.github\/workflows\/pr-review\.yml\)/);
+  const b = scopeLint(lint([other, mine]));
+  assert.equal(b.row.ok, false);
+  assert.equal(b.warning, null);
+  assert.equal(scopeLint(lint(['workflow-lint crashed'])).row.ok, false, 'no parsable problem: stays red');
+  assert.equal(scopeLint({ name: 'plan-check', ok: false, out: other }).row.ok, false);
 });
