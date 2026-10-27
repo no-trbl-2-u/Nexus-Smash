@@ -31,7 +31,7 @@ Your project's own steps (a weekly snapshot, a content queue,
 an empty-queue refill) go in `skills/march.lanes.md`, not
 here: a re-sync of the kit's skills replaces this file and
 never touches that one. With no lane blocks there, dispatch is
-the stock order above. Generators listed in `plan/bearings.md`
+the stock order above. Generators the `generators` knob lists
 refill the queue through the stock `refill` lane (Step 3a').
 
 This means: an overnight run can take <PROJECT> from
@@ -77,10 +77,16 @@ dispatch exactly as below.
 The word never loosens `plan/bearings.md`: posture `strict`
 keeps `/expand` a no-op (`bold` then reads as `balanced`, and
 the report says so), and only posture `autonomous` writes specs
-without `/oversight` (and `Promote: aged`, one aged candidate a
-pass, held behind its veto window).
+without `/oversight` (and a `promote` knob of `aged`, one aged
+candidate a pass, held behind its veto window).
 
 ## 3. Procedure
+
+Expansion knobs (support, promote, stall_action, loop, ui,
+research, cadence) are read through `node
+scripts/plan/improve.mjs [--get <knob>]`: the `Improve:`
+dial's value, the knob's own line or the repo variable, never
+a grep of bearings (spec 59). An absent dial reads `gentle`.
 
 ### Step 0 — Sync
 
@@ -162,8 +168,8 @@ motion stalled` issue when the last full week shipped under
 node scripts/plan/motion.mjs react      # promote #N | alert #N | off #N | none (gh read only)
 ```
 
-- `promote #N` (`stall_action: promote`, under `Promote: aged`
-  or `autonomous`): run only the aged promotion now
+- `promote #N` (`stall_action` reads `promote`, `promote`
+  reads `aged` or `autonomous`): run only the aged promotion now
   (`skills/expand.md` Step 4b: `promote.mjs pick` → the spec
   → the `loop:veto` issue → `promote.mjs hold`), the expand
   rate limit skipped. Never a bare `/expand promote` pass:
@@ -210,9 +216,9 @@ If `urgent > 0` or `unlabeled > 0`:
   half the budget used) → Step 1.5, then 3a in this tick, past
   the critique gate. `return` → return.
 
-Under `Support: triage-only` (the default) triage routes
-nothing to `/bug`, so the routed set is `none` and the tick
-returns as it always has.
+While the `support` knob reads `triage-only` (the default)
+triage routes nothing to `/bug`, so the routed set is `none` and
+the tick returns as it always has.
 
 If `unlabeled == 0`, fall through to Step 1.5.
 
@@ -222,9 +228,9 @@ the march** — log warning and fall through.
 ### Step 1.5 — Support SLA
 
 A queued user issue never waits behind the spec table past
-its SLA. Under `Support: fix-small` or `fix-all`
-(`plan/bearings.md`; `triage-only`, the default, prints `off`
-and skips the step):
+its SLA. While the `support` knob reads `fix-small` or `fix-all`
+(`triage-only`, the default, prints `off` and skips the
+step):
 
 ```bash
 node scripts/plan/support.mjs sla   # plot #N | lift <id> #N | wait #N, then due N | clean (gh read only)
@@ -314,7 +320,7 @@ A lane returning `end-tick` ends the tick; `stock`, or every
 lane returning `continue`, falls through to 3b.
 
 The first `queue` lane is the stock **refill** lane whenever
-`## Generators` in `plan/bearings.md` lists one (none listed:
+the `generators` knob lists one (none listed:
 it is not there). It runs each listed generator
 (`nexus/concepts/generators.md`), which files rows into
 `plan/AUDIT.md` while its own rows are under their target and
@@ -434,7 +440,8 @@ skills/expand.md                     # Step 3c (posture-gated)
 scripts/plan/promote.mjs             # Step 0 veto sweep (Promote: aged)
 scripts/plan/locks.mjs               # Step 0 lock sweep: past max_age, a fallback or one ask
 skills/march.lanes.md                # Step 0.5 + 3a': this project's own lanes (scripts/plan/lanes.mjs)
-scripts/plan/refill.mjs              # Step 3a': the stock refill lane runs plan/bearings.md's generators
+scripts/plan/refill.mjs              # Step 3a': the stock refill lane runs the generators knob's list
+scripts/plan/improve.mjs             # every knob's value and source (--get <knob>)
 scripts/plan/motion.mjs react        # Step 0.5: an open motion stall under stall_action promote
 skills/iterate.md                    # Step 3d
 ```

@@ -82,23 +82,24 @@ its own cadence.
    no-ops included), `Shipped`, `Queues now` (the candidates
    line grows the >21-day count alongside the existing
    pending-count and oldest-age numbers, e.g. "9 pending (3
-   >21d), oldest 30d", then the Support line as is), `Needs
-   you` (each `escalate #N` line first, then blocked rows,
-   needs-user issues, `[needs-user-call]`s, plus — when either ≥5
-   candidates are pending >21 days or the oldest pending
-   candidate exceeds 45 days — a line reading "oversight
-   needed: candidate queue silting (N pending >21d, oldest
-   Xd)"; under `Promote: aged` the valve is draining it, so the
-   line reads "auto-promoted <NN> <title> (veto until <date>),
-   Y awaiting" from `node scripts/plan/promote.mjs sweep`, or
-   "auto-promoted none, Y awaiting" — one `cut <date> [score X]
-   <title>` line per candidate the Pending cap cut since the
-   last digest (`node scripts/plan/promote.mjs cuts --since
-   <its date>`), a `motion stalled: <the
-   pulse's shipped line>` line whenever `--motion` reads
-   `stalled` (the alert `stall_action: alert` promises), and
-   each `rotate <NAME>` line of `node scripts/secrets.mjs
-   audit`, a secret last set over 90
+   >21d), oldest 30d", then the Support line as is, then the
+   Improve line (`node scripts/plan/improve.mjs --line`)),
+   `Needs you` (each `escalate #N` line first, then blocked
+   rows, needs-user issues, `[needs-user-call]`s, plus — when
+   either ≥5 candidates are pending >21 days or the oldest
+   pending candidate exceeds 45 days — a line reading "oversight
+   needed: candidate queue silting (N pending >21d, oldest Xd)";
+   when the `promote` knob reads `aged` the valve is draining
+   it, so the line reads "auto-promoted <NN> <title> (veto until
+   <date>), Y awaiting" from
+   `node scripts/plan/promote.mjs sweep`, or "auto-promoted
+   none, Y awaiting" — one `cut <date> [score X] <title>` line
+   per candidate the Pending cap cut since the last digest
+   (`node scripts/plan/promote.mjs cuts --since <its date>`), a
+   `motion stalled: <the pulse's shipped line>` line whenever
+   `--motion` reads `stalled` (the alert the `stall_action`
+   knob's `alert` promises), and each `rotate <NAME>` line of
+   `node scripts/secrets.mjs audit`, a secret last set over 90
    days ago; the log is local, so a cloud run skips it),
    `Today's intent` (next ready chunk + top finding),
    `Tuning proposals` (step 5, or "none").
@@ -145,6 +146,7 @@ plan/CANDIDATES.md             # tuning proposals land here
 node scripts/pulse.mjs               # local queue/plan numbers
 gh run list --workflow march -L 20   # the invisible no-ops
 node scripts/plan/support.mjs digest # the Support line + needs-user escalations
+node scripts/plan/improve.mjs --line # the Improve line: the dial and its overrides
 SMOKE_SAMPLE=full pnpm e2e           # the nightly breadth leg
 pnpm verify
 git commit -m "digest: <YYYY-MM-DD>"   # then land per owner mode (next/land.md §6)

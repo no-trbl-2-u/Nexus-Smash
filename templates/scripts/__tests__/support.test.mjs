@@ -29,6 +29,23 @@ describe('the level', () => {
     assert.deepEqual(supportLevel('', {}), { level: 'triage-only', source: 'default', note: null });
   });
 
+  it('reads the Improve dial when no Support line is set, and the Support line beats the dial (spec 59.2)', () => {
+    const sec = (...rows) => ['## Plan expansion posture', '', ...rows, ''].join('\n');
+    assert.deepEqual(supportLevel(sec('Improve: bold'), {}), { level: 'fix-all', source: 'dial', note: null });
+    assert.equal(supportLevel(sec('Improve: steady'), {}).level, 'fix-small');
+    assert.deepEqual(supportLevel(sec('Improve: gentle'), {}), { level: 'triage-only', source: 'dial', note: null });
+    assert.deepEqual(supportLevel(sec('Improve: bold', 'Support: fix-small'), {}), { level: 'fix-small', source: 'bearings', note: null });
+    assert.equal(supportLevel(sec('Improve: bold'), { NEXUS_SUPPORT: 'off' }).level, 'off');
+  });
+
+  it('agrees with the resolver on precedence: the variable wins in both', async () => {
+    const { resolve } = await import('../plan/improve.mjs');
+    for (const [text, env] of [['Improve: steady', {}], ['Support: off', { NEXUS_SUPPORT: 'fix-all' }], ['Improve: bold', { NEXUS_SUPPORT: 'bogus' }], ['', { NEXUS_SUPPORT: 'fix-small' }]]) {
+      const bearings = text ? `## Plan expansion posture\n\n${text}\n` : '';
+      assert.equal(resolve(bearings, env).knobs.find((k) => k.knob === 'support').value, supportLevel(bearings, env).level, `${text} ${JSON.stringify(env)}`);
+    }
+  });
+
   it('lets a set NEXUS_SUPPORT win over bearings and notes the disagreement', () => {
     const l = supportLevel('Support: triage-only', { NEXUS_SUPPORT: 'fix-all' });
     assert.equal(l.level, 'fix-all');

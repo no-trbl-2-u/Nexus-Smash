@@ -2,8 +2,9 @@
 
 > **Plan growth, posture-gated.** Read the accumulated signals
 > and propose new kit specs as candidates. `/oversight`
-> promotes; under `Promote: aged` the strongest aged candidate
-> also promotes itself, held behind a veto window (§6).
+> promotes; when the `promote` knob reads `aged` the strongest
+> aged candidate also promotes itself, held behind a veto
+> window (§6).
 
 ## 1. Purpose
 
@@ -112,11 +113,11 @@ still >3). **Cap 3 candidates per pass.**
 
 ## 6. Aged promotion: the silt valve
 
-A queue nobody promotes silts up. Under `Promote: aged` (or
-`autonomous`) in `plan/bearings.md`'s `## Plan expansion
-posture` (no key reads `owner`: nothing here runs), each pass
-ends by promoting at most one aged candidate, behind a window
-in which the owner can say no.
+A queue nobody promotes silts up. When
+`node scripts/plan/improve.mjs --get promote` reads `aged` (or
+`autonomous`; `owner`, the absent-dial default, runs nothing
+here), each pass ends by promoting at most one aged candidate,
+behind a window in which the owner can say no.
 
 1. `node scripts/plan/promote.mjs pick`. It prints `pick …`
    for the best Pending row scoring ≥ `promote_floor` that is

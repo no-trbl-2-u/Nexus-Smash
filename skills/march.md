@@ -57,13 +57,19 @@ exactly as below.
 The word never loosens `plan/bearings.md`: posture `strict`
 keeps `/expand` a no-op (`bold` then reads as `balanced`, and
 the report says so), and only posture `autonomous` writes specs
-without `/oversight` (and `Promote: aged`, one aged candidate a
-pass, held behind its veto window).
+without `/oversight` (and a `promote` knob of `aged`, one aged
+candidate a pass, held behind its veto window).
 
 Cloud: `.github/workflows/march.yml` runs one tick per cron
 firing.
 
 ## 3. Procedure
+
+Expansion knobs (support, promote, stall_action, loop, ui,
+research, cadence) are read through `node
+scripts/plan/improve.mjs [--get <knob>]`: the `Improve:`
+dial's value, the knob's own line or the repo variable, never
+a grep of bearings (spec 59). An absent dial reads `gentle`.
 
 ### Step 0 — Sync
 
@@ -134,14 +140,15 @@ stalled` when a full week ships under `Motion floor`):
 node scripts/plan/motion.mjs react      # promote #N | alert #N | off #N | none (gh read only)
 ```
 
-`promote #N` (`stall_action: promote` under `Promote: aged`):
-run only `skills/expand.md` §6's aged promotion now, the
-expand rate limit skipped (`promote.mjs pick` → the spec →
+`promote #N` (`stall_action` reads `promote`, `promote` reads
+`aged`): run only `skills/expand.md` §6's aged promotion now,
+the expand rate limit skipped (`promote.mjs pick` → the spec →
 the `loop:veto` issue → `promote.mjs hold`), never a bare
-`/expand promote` pass: that one writes every pick straight
-in, with no veto window. So `promote_per_week` bounds a long
-stall and the owner keeps the window. Then Step 1. `alert`, `off` and `none`: go on; the
-heartbeat closes the issue when a week recovers.
+`/expand promote` pass: that one writes every pick straight in,
+with no veto window. So `promote_per_week` bounds a long stall
+and the owner keeps the window. Then Step 1. `alert`, `off` and
+`none`: go on; the heartbeat closes the issue when a week
+recovers.
 
 ### Step 1 — Triage gate (cheapest; concierge first)
 
@@ -178,8 +185,9 @@ critique gate. `return` → return. No issue to triage → Step
 
 ### Step 1.5 — Support SLA
 
-A queued user issue never waits behind the spec table past
-its SLA (spec 54). Under `Support: fix-small` or `fix-all`:
+A queued user issue never waits behind the spec table past its
+SLA (spec 54). When the `support` knob reads `fix-small` or
+`fix-all`:
 
 ```bash
 node scripts/plan/support.mjs sla   # plot #N | lift <id> #N | wait #N, then due N | clean (gh read only)
@@ -231,8 +239,8 @@ return.
   scripts/plan/lanes.mjs march queue`, then as Step 0.5 (a
   lane returning `end-tick` ends the tick; `stock` or every
   lane `continue` falls through to 3b). The first is the
-  stock **refill** lane (`## Generators` in
-  `plan/bearings.md`; `concepts/generators.md`): `node
+  stock **refill** lane (the `generators`
+  knob; `concepts/generators.md`): `node
   scripts/plan/refill.mjs --write` runs each listed
   generator, which files AUDIT rows while its own are under
   target and weekly cap. A `broke` line goes in the tick's
@@ -279,9 +287,10 @@ plan/CRITIQUE.md                     # critique queue + rate-limit metadata
 plan/CANDIDATES.md             # expand output + rate-limit metadata
 node scripts/plan/promote.mjs sweep  # Step 0: veto or release auto-promoted Held specs
 node scripts/plan/locks.mjs sweep    # Step 0: locks past max_age relax or ask once
+node scripts/plan/improve.mjs         # every knob's value and source; --get <knob> for one
 node scripts/plan/lanes.mjs march pre|queue  # project lanes (skills/march.lanes.md)
 node scripts/plan/motion.mjs react    # Step 0.5: an open motion stall under stall_action promote
-node scripts/plan/refill.mjs --write # 3a': the stock refill lane runs bearings' generators
+node scripts/plan/refill.mjs --write # 3a': the stock refill lane runs the generators knob's list
 gh issue list ...                    # triage gate
 node scripts/plan/support.mjs continue|asap  # Step 1 keeps going; Step 2 waits behind Asap
 node scripts/plan/support.mjs sla    # Step 1.5: a queued issue past sla_hours is plotted Asap

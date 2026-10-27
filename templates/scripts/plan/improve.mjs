@@ -3,15 +3,27 @@
 //
 // `Improve: off | gentle | steady | bold` in plan/bearings.md (`## Plan expansion posture`) sets the default of every
 // expansion knob at once; absent reads as `gentle` (today's behaviour). A knob's own line (`Promote:`, `Support:`,
-// `stall_action:`, `loop:`, `UI:`, `Research:`, a non-empty `## Generators` list) overrides the dial for that knob
-// only. Skills read knobs through this resolver and never grep bearings for them.
+// `stall_action:`, `loop:`, `UI cadence:`, `Research:`, a non-empty `## Generators` list) overrides the dial for that
+// knob only. Skills read knobs through this resolver and never grep bearings for them (scripts/__tests__/improve.test.mjs
+// holds the named skills to it).
 //
-//   node scripts/plan/improve.mjs [--json] [--root <dir>]     # one line per knob: <knob> <value> (dial|override)
+//   node scripts/plan/improve.mjs [--json] [--root <dir>]     # one line per knob: <knob> <value> (dial|override|var)
+//   node scripts/plan/improve.mjs --line                      # the digest's one line: improve bold; promote owner (override)
+//   node scripts/plan/improve.mjs --get <knob> [--if-set]     # the bare value; --if-set prints nothing when only a
+//                                                             # gentle (or absent) dial gave it: gentle is today's
+//                                                             # behaviour, so a workflow's literals stand (the Cadence
+//                                                             # step); off, steady and bold are passed through
 //
-// The repo variables NEXUS_SUPPORT and NEXUS_CADENCE stay the cloud's source of truth for the knobs that live there:
-// the resolver reads them from the environment (or an injected map) and warns when one disagrees with the value the
-// dial and the override lines give. The warning goes to stderr (a `warn:` line) and, with --json, to `warnings`.
-// Exit 0 always: a disagreement is a note, never a failure.
+// UI: the `UI:` line (none | url | dev) is the browser-walk TARGET and is not a dial knob. The dial's ui row is the audit
+// CADENCE, read from `UI cadence:` (none | critique | iterate | both: the line the critique and iterate skills already
+// read). The dial gives none / none / critique / iterate; a cadence walks only when `UI:` names something to walk.
+//
+// Variables: NEXUS_SUPPORT and NEXUS_CADENCE stay the cloud's source of truth for the knobs that live there. When one is
+// set (and valid) in the environment (or an injected map) it WINS: the knob prints its value with source `var`,
+// scripts/plan/support.mjs agrees (same precedence), and a variable that differs from what the dial and the override
+// lines give is also a `warn:` line on stderr and, with --json, in `warnings`. A set but invalid variable is a warning
+// and is ignored. The nudge workflow gates on `vars.NEXUS_SUPPORT` itself (a job `if` cannot read a file) and is not
+// resolved here. Exit 0 always for a read: a disagreement is a note, never a failure (an unknown --get knob exits 2).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -35,11 +47,11 @@ export const TABLE = Object.freeze([
     values: { off: 'off', gentle: 'alert', steady: 'alert', bold: 'promote' } },
   { knob: 'loop', registry: 'loop', line: 'loop', var: null, accepts: ['on', 'off'],
     values: { off: 'off', gentle: 'off', steady: 'on', bold: 'on' } },
-  { knob: 'ui', registry: 'UI', line: 'UI', var: null, accepts: ['none', 'url', 'dev'],
+  { knob: 'ui', registry: 'UI cadence', line: 'UI cadence', var: null, accepts: ['none', 'critique', 'iterate', 'both'],
     values: { off: 'none', gentle: 'none', steady: 'critique', bold: 'iterate' } },
   { knob: 'research', registry: null, line: 'Research', var: null, accepts: ['off', 'monthly', 'weekly'],
     values: { off: 'off', gentle: 'off', steady: 'monthly', bold: 'weekly' } },
-  { knob: 'cadence', registry: 'NEXUS_CADENCE', line: null, var: 'NEXUS_CADENCE', accepts: ['calm', 'steady', 'eager'],
+  { knob: 'cadence', registry: 'NEXUS_CADENCE', line: null, var: 'NEXUS_CADENCE', accepts: ['calm', 'steady', 'eager', 'sprint', 'off'],
     values: { off: 'calm', gentle: 'steady', steady: 'steady', bold: 'eager' } },
 ]);
 
@@ -142,14 +154,24 @@ export function resolve(bearings = '', env = {}) {
     }
     if (t.var && env[t.var] != null && String(env[t.var]).trim() !== '') {
       const v = String(env[t.var]).trim().toLowerCase();
-      if (v !== value) warnings.push(`${t.var}=${v} disagrees with ${t.knob} ${value} (${source}${source === 'dial' ? `, Improve: ${d.position}` : ''}); the variable is the cloud's source of truth, so set one to match the other`);
+      if (t.accepts && !t.accepts.includes(v)) warnings.push(`${t.var}=${v} is not one of ${t.accepts.join(' | ')}; ignored`);
+      else {
+        if (v !== value) warnings.push(`${t.var}=${v} disagrees with ${t.knob} ${value} (${source}${source === 'dial' ? `, Improve: ${d.position}` : ''}); the variable wins in cloud, so set one to match the other`);
+        value = v;
+        source = 'var';
+      }
     }
     return { knob: t.knob, value, source, dial: base };
   });
   return { dial: d.position, set: d.set, knobs: out, warnings };
 }
 
-/** The one-line form of a resolution: `<knob> <value> (dial|override)` per knob. */
+/** The digest's line: `improve <dial>` then each knob that is not at its dial value, `<knob> <value> (override|var)`. */
+export function summary(r) {
+  return ['improve ' + r.dial + (r.set ? '' : ' (absent: gentle)'), ...r.knobs.filter((k) => k.source !== 'dial').map((k) => `${k.knob} ${k.value} (${k.source})`)].join('; ');
+}
+
+/** The one-line form of a resolution: `<knob> <value> (dial|override|var)` per knob. */
 export function lines(r) {
   return r.knobs.map((k) => `${k.knob} ${k.value} (${k.source})`);
 }
@@ -160,7 +182,16 @@ export function main(argv = process.argv.slice(2), { root, env = process.env, lo
   const file = path.join(base, 'plan', 'bearings.md');
   const bearings = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
   const r = resolve(bearings, env);
-  if (argv.includes('--json')) log(JSON.stringify(r, null, 2));
+  const get = argv.indexOf('--get');
+  if (get >= 0) {
+    const k = r.knobs.find((x) => x.knob === argv[get + 1]);
+    if (!k) { err(`improve: unknown knob ${argv[get + 1] ?? ''} (${r.knobs.map((x) => x.knob).join(', ')})`); return 2; }
+    // --if-set: a value the dial alone gives counts only above gentle; gentle is today's behaviour, so nothing is set.
+    if (!(argv.includes('--if-set') && k.source === 'dial' && r.dial === DEFAULT_POSITION)) log(k.value);
+    return 0;
+  }
+  if (argv.includes('--line')) log(summary(r));
+  else if (argv.includes('--json')) log(JSON.stringify(r, null, 2));
   else { log(`improve ${r.dial}${r.set ? '' : ' (absent: gentle)'}`); for (const l of lines(r)) log(l); }
   for (const w of r.warnings) err(`warn: ${w}`);
   return 0;

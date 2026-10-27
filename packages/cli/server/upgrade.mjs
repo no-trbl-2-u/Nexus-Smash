@@ -370,6 +370,8 @@ export function flippedLock(seed, today) {
  * upgrade leaves it at so the v1 train runs unchanged and the owner turns knobs up later, one at a time.
  *
  *   at       bearings (a plan/bearings.md line) | section (a `## <knob>` list) | var (a repo variable)
+ *   in       a bearings row only: the `## <heading>` the line must sit in (the Improve dial counts only inside
+ *            `## Plan expansion posture`); the section is added when the repo has none
  *   value    the conservative value; for a var, null is unset
  *   write    true: the upgrade writes it (a bearings line or section added when missing, never over the repo's own;
  *            a var's `gh variable set` line, or "leave unset"). false: left out, and the kit's default stands
@@ -378,6 +380,8 @@ export function flippedLock(seed, today) {
  * knobsMissing() names a template knob with no row: a test and the verify gate's upgrade leg fail on it.
  */
 export const KNOBS = Object.freeze([
+  // Spec 59: the improvement dial at gentle (today's behaviour); it sets the default of every knob below.
+  { knob: 'Improve', at: 'bearings', in: 'Plan expansion posture', value: 'gentle', write: true, accepts: ['off', 'gentle', 'steady', 'bold'] },
   // Spec 54-57: written at the value that keeps today's behaviour.
   { knob: 'Support', at: 'bearings', value: 'triage-only', write: true, accepts: ['off', 'triage-only', 'fix-small', 'fix-all'] },
   { knob: 'NEXUS_SUPPORT', at: 'var', value: null, write: true },
@@ -429,6 +433,18 @@ export function knobsMissing(root, registry = KNOBS) {
 
 const knobLine = (key) => new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?[*\`]*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[*\`]*[ \\t]*:[*\`]*[ \\t]*[*\`]*([^\\s*\`]+)`, 'gm');
 
+/** Where a `## <heading>` line ends in the text: { end } (the index after the heading), or null. */
+function headingAt(text, heading) {
+  const m = new RegExp(`^##[ \\t]+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b[^\\n]*$`, 'mi').exec(text);
+  return m ? { end: m.index + m[0].length } : null;
+}
+
+/** The text under a `## <heading>`, up to the next heading of level 1 to 3 ('' when there is none). */
+function headingBody(text, heading) {
+  const h = headingAt(text, heading);
+  return h ? text.slice(h.end).split(/^#{1,3}[ \t]/m)[0] : '';
+}
+
 /**
  * Write the conservative knobs into plan/bearings.md text: each `write` bearings row whose line is missing goes into
  * one `## Loop knobs` block at the end, and a missing `## Generators` section is added empty. A line the repo already
@@ -442,6 +458,7 @@ export function writeKnobs(bearings, { today, registry = KNOBS, why = 'keep the 
   const knobs = [];
   const lines = [];
   let generators = false;
+  const placed = [];
   for (const r of registry.filter((k) => k.write)) {
     if (r.at === 'var') {
       knobs.push(r.value == null ? { knob: r.knob, at: r.at, value: null, status: 'unset' }
@@ -454,6 +471,12 @@ export function writeKnobs(bearings, { today, registry = KNOBS, why = 'keep the 
       knobs.push({ knob: r.knob, at: r.at, value: r.value, status: have ? 'kept' : 'written' });
       continue;
     }
+    if (r.in) {
+      const own = headingBody(plain, r.in).split('\n').flatMap((l) => [...l.matchAll(knobLine(r.knob))].map((m) => m[1])).find((v) => !r.accepts || r.accepts.includes(v));
+      if (own) knobs.push({ knob: r.knob, at: r.at, value: own, status: 'kept' });
+      else { placed.push(r); knobs.push({ knob: r.knob, at: r.at, value: r.value, status: 'written' }); }
+      continue;
+    }
     // Only a line whose value the knob accepts is the repo's setting; prose (`Support: email us`) is not, and the
     // conservative line is written beside it (the report warns about the line it passed over).
     const found = [...plain.matchAll(knobLine(r.knob))].map((m) => m[1]);
@@ -462,13 +485,24 @@ export function writeKnobs(bearings, { today, registry = KNOBS, why = 'keep the 
     lines.push(r.bold ? `\n**${r.knob}:** \`${r.value}\`` : `- ${r.knob}: ${r.value}`);
     knobs.push({ knob: r.knob, at: r.at, value: r.value, status: 'written', ...(found.length ? { ignored: found[0] } : {}) });
   }
+  // A line that belongs inside a section goes right under the repo's own heading; with no such section, a new one.
+  let body = text;
   const blocks = [];
+  const fresh = new Map();
+  for (const r of placed) {
+    const head = headingAt(body, r.in);
+    if (head) body = `${body.slice(0, head.end)}\n\n${r.knob}: ${r.value}\n${body.slice(head.end).replace(/^\n+/, '\n')}`;
+    else fresh.set(r.in, [...(fresh.get(r.in) ?? []), r]);
+  }
+  for (const [heading, rows] of fresh) {
+    blocks.push(`## ${heading}\n\nWritten by \`nexus upgrade\`${today ? ` (${today})` : ''}: how hard the loop pushes\nbeyond the plan, \`off | gentle | steady | bold\`. \`gentle\` keeps\ntoday's behaviour; a knob's own line overrides the dial for\nthat knob only.\n\n${rows.map((r) => `${r.knob}: ${r.value}`).join('\n')}`);
+  }
   if (lines.length) {
     blocks.push(`## Loop knobs\n\nWritten by \`nexus upgrade\`${today ? ` (${today})` : ''} at the values that ${why}. Turn each up on its own, later: \`Support:\`\n(\`nexus/customization/support.md\`), \`Promote:\` and \`stall_action\`\n(aged promotion, the motion heartbeat), \`loop:\` (\`/iterate\` dimension\nI), \`UI:\` (the browser walk).\n\n${lines.join('\n').replace(/^\n/, '')}`);
   }
   if (generators) blocks.push('## Generators\n\nWhen no chunk is ready, `/march`\'s stock `refill` lane runs each\ngenerator listed here (`nexus/concepts/generators.md`). None listed\nmeans refill is a no-op.\n\n- (none)');
-  if (!blocks.length) return { text, knobs };
-  const head = text.trim() ? `${text.replace(/\s*$/, '')}\n\n` : '# Bearings\n\n';
+  if (!blocks.length) return { text: body, knobs };
+  const head = body.trim() ? `${body.replace(/\s*$/, '')}\n\n` : '# Bearings\n\n';
   return { text: `${head}${blocks.join('\n\n')}\n`, knobs };
 }
 
