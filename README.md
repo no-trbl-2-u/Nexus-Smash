@@ -507,6 +507,8 @@ nexus/
 │   ├── __tests__/diagrams.test.mjs    # the generator's own suite (run by the diagrams leg)
 │   ├── gifs.mjs                       # every GIF the README shows: exists, 5-8 s, 3 MB at most, alt text, its poster (the gifs leg)
 │   ├── __tests__/gifs.test.mjs        # the checker's own suite (run by the gifs leg)
+│   ├── placeholders.mjs               # the placeholders leg's scan: every token in the settled view (pending Adds and Edits applied) is in the vocabulary
+│   ├── __tests__/placeholders.test.mjs # the scan's own suite (run by the placeholders leg)
 │   ├── cadence-twins.mjs              # the Cadence, Quota gate and Chain steps agree across nexus, templates/ and the CLI kit, and no shipped cron fires at :00 (the cadence-twins leg)
 │   ├── __tests__/cadence-twins.test.mjs # the checker's own suite (run by the cadence-twins leg)
 │   ├── cloud/probe-latency.mjs        # owner-run: dispatch p50/p90 of the no-model probe.yml, march's schedule lag, the hook probe line
@@ -541,6 +543,7 @@ nexus/
 │   ├── __tests__/iterate-loop.test.mjs # nexus's own I rows clean, plus dimension I in the skills and bearings (scripts leg)
 │   ├── plan/state.mjs                 # the state diet: queue headers and size (the state-size leg); compact old Done rows (twin)
 │   ├── plan/support.mjs               # the Support level: triage's route to /bug, the asap_cap count, march's keep-going, the Step 1.5 SLA, aged user rows, a landed fix told and closed, the digest's Support line and needs-user escalation (twin)
+│   ├── plan/improve.mjs               # the improvement dial: `Improve:` in bearings sets every expansion knob's default, an override line wins per knob, a NEXUS_* variable that disagrees is warned about (twin)
 │   ├── generators/issue-age.mjs       # an open issue past the SLA becomes one AUDIT HIGH row (twin)
 │   ├── generators/stale-candidate.mjs # an aged candidate no promote rule reaches becomes one needs-user ask (twin)
 │   ├── generators/motion.mjs          # a stalled motion pulse becomes one AUDIT HIGH row about the loop (twin)
@@ -745,6 +748,7 @@ nexus/
     │   ├── plan/loop-rows.mjs         # /iterate dimension I: loop-config rows turn one lever, ease <= 6, one ships per 7 days, YAML asked
     │   ├── plan/state.mjs             # the state diet: queue headers <= 20 lines, <= 256 KB; delete Done rows past 30 days
     │   ├── plan/support.mjs           # Support level (NEXUS_SUPPORT over bearings): route a collaborator's bug to /bug, asap_cap, march keeps going, Step 1.5 plots a queued issue past sla_hours, user rows age +1/12h, tell closes a landed fix's issue, digest prints the Support line and escalates needs-user past escalate_days
+    │   ├── plan/improve.mjs           # the improvement dial resolver: Improve: off|gentle|steady|bold sets each expansion knob's default; prints every knob with its source (dial|override); warns when NEXUS_SUPPORT or NEXUS_CADENCE disagrees
     │   ├── generators/issue-age.mjs   # generator: an open issue past sla_hours -> one AUDIT HIGH row (gh read only)
     │   ├── generators/stale-candidate.mjs # generator: an aged candidate no promote rule reaches -> one needs-user ask
     │   ├── generators/motion.mjs      # generator: a stalled motion pulse -> one AUDIT HIGH row a week
