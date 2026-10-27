@@ -530,8 +530,27 @@ export function gate(dir, { node = process.execPath } = {}) {
   if (!exists(dir, 'scripts/plan-check.mjs')) return [{ name: 'plan-check', ok: false, out: 'scripts/plan-check.mjs is not in this repo' }];
   const rows = [run('plan-check', ['scripts/plan-check.mjs'])];
   if (exists(dir, 'scripts/__tests__/plan-check.test.mjs')) rows.push(run('plan-check test', ['--test', 'scripts/__tests__/plan-check.test.mjs']));
+  const verify = repoVerify(dir);
+  if (verify) rows.push(verify);
   if (exists(dir, 'scripts/workflow-lint.mjs')) rows.push(run('workflow-lint', ['scripts/workflow-lint.mjs']));
   return rows;
+}
+
+/**
+ * The repo's own verify command (package.json `scripts.verify`) as a gate row; a repo with no such script gets none.
+ * A package that declares dependencies but has no node_modules in the worktree gets a skipped row (ok, `skipped`):
+ * the command cannot run before an install, and the upgrade never installs on its own.
+ */
+export function repoVerify(dir) {
+  let pkg;
+  try { pkg = JSON.parse(read(dir, 'package.json') || 'null'); } catch { return null; }
+  if (typeof pkg?.scripts?.verify !== 'string') return null;
+  const name = 'repo verify';
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+  if (deps.length && !exists(dir, 'node_modules')) return { name, ok: true, skipped: true, out: 'scripts.verify needs an install first (npm ci); run it in the worktree' };
+  const r = spawnSync('npm run verify --silent', { cwd: dir, encoding: 'utf8', shell: true, windowsHide: true, timeout: 600000, maxBuffer: 64 * 1024 * 1024 });
+  const out = `${r.stdout || ''}${r.stderr || ''}`.trim();
+  return { name, ok: r.status === 0, out: out.split(/\r?\n/).slice(-20).join('\n') };
 }
 
 /**
@@ -689,7 +708,7 @@ export function render(report, { color = false } = {}) {
   for (const wn of report.warnings) out.push(`  - ${wn}`);
   out.push('', 'gate');
   for (const g of report.gate) {
-    out.push(`  ${g.ok ? 'green' : red('RED  ')}  ${g.name}`);
+    out.push(`  ${g.ok ? (g.skipped ? 'skip ' : 'green') : red('RED  ')}  ${g.name}${g.skipped ? `  (${g.out})` : ''}`);
     if (!g.ok && g.out) for (const l of g.out.split('\n')) out.push(`         ${l}`);
   }
   if (report.workflow) {
