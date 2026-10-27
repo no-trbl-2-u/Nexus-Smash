@@ -106,8 +106,11 @@ jobs:
       # off) sets the 24h ceiling, the chain depth and the idle backoff
       # at run time, with no file edit; a per-field variable
       # (NEXUS_DAILY_CEILING, NEXUS_CHAIN_MAX, NEXUS_IDLE_BACKOFF)
-      # overrides its preset. Unset, the ceiling literal below and the
-      # scripts' defaults stand, and nothing chains. The cron line is
+      # overrides its preset. NEXUS_CADENCE unset, the Improve dial's
+      # cadence stands in once plan/bearings.md sets a dial
+      # (scripts/plan/improve.mjs --get cadence --if-set); with no
+      # dial either, the ceiling literal below and the scripts'
+      # defaults stand, and nothing chains. The cron line is
       # the one thing it cannot change (cadence.mjs apply writes it).
       - name: Cadence
         id: cadence
@@ -116,7 +119,7 @@ jobs:
           CEILING: ${{ vars.NEXUS_DAILY_CEILING }}
           CHAIN_MAX: ${{ vars.NEXUS_CHAIN_MAX }}
           IDLE_BACKOFF: ${{ vars.NEXUS_IDLE_BACKOFF }}
-        run: node templates/scripts/cloud/cadence.mjs resolve --cadence "$CADENCE" --ceiling "$CEILING" --chain-max "$CHAIN_MAX" --idle-backoff "$IDLE_BACKOFF" || true
+        run: node templates/scripts/cloud/cadence.mjs resolve --cadence "${CADENCE:-$(node scripts/plan/improve.mjs --get cadence --if-set 2>/dev/null)}" --ceiling "$CEILING" --chain-max "$CHAIN_MAX" --idle-backoff "$IDLE_BACKOFF" || true
 
       - name: Daily commit ceiling check
         id: ceiling

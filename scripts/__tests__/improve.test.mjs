@@ -302,3 +302,14 @@ describe('the named skills read knobs through the resolver (A2)', () => {
     assert.deepEqual(stale(fs.readFileSync(path.join(ROOT, 'skills/critique.md'), 'utf8')), []);
   });
 });
+
+describe('the cadence step reads the dial when the variable is unset (A2)', () => {
+  for (const file of ['.github/workflows/march.yml', '.github/workflows/heartbeat.yml', 'templates/.github/workflows/march.yml', 'templates/.github/workflows/heartbeat.yml']) {
+    it(`${file}: every Cadence step falls back to improve.mjs --get cadence --if-set`, () => {
+      const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+      const runs = text.split('\n').filter((l) => /cadence\.mjs resolve/.test(l));
+      assert.ok(runs.length, `${file} has no cadence resolve step`);
+      for (const l of runs) assert.match(l, /--cadence "\$\{CADENCE:-\$\(node scripts\/plan\/improve\.mjs --get cadence --if-set/, l.trim());
+    });
+  }
+});
