@@ -950,7 +950,7 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/settle.test.mjs',
   'templates/scripts/__tests__/claims-codec.test.mjs',
   'templates/scripts/__tests__/board-codec.test.mjs',
-  'templates/scripts/__tests__/board-codec.test.mjs',
+  'templates/scripts/__tests__/board-read.test.mjs',
   'templates/scripts/__tests__/claims-board.test.mjs',
   'templates/scripts/__tests__/push-policy.test.mjs',
   'templates/scripts/__tests__/progress.test.mjs',
@@ -1010,6 +1010,7 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
   'templates/scripts/__tests__/claims.test.mjs',
   'templates/scripts/__tests__/claims-board-write.test.mjs',
+  'templates/scripts/__tests__/board-run.test.mjs',
   'templates/scripts/__tests__/push-policy-hook.test.mjs',
   'templates/scripts/__tests__/install-hooks-run.test.mjs',
   'templates/scripts/__tests__/worktree.test.mjs',
@@ -1033,7 +1034,7 @@ const GIT_SUITES = [
 // claims) from byte copies in scripts/: a fix lands in both or the
 // gate goes red, so the kit never runs a version adopters don't get.
 const DOGFOOD_TWINS = [
-  'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'git/push-policy.mjs',
+  'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'board.mjs', 'git/push-policy.mjs',
   'plan/pending.mjs', 'plan/settle.mjs', 'plan/settled.mjs', 'plan/config.mjs', 'plan/footguns.mjs',
   'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs', 'plan/field.mjs',
   'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'generators/research.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',

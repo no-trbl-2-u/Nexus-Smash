@@ -769,6 +769,7 @@ nexus/
     │   ├── design/prompt.mjs          # the Claude Design prompt and addenda from the plan; design/prompts/NNN-<date>.md, numbered on
     │   ├── claims-codec.mjs           # the claims rules, pure (any claimant imports them)
     │   ├── claims.mjs                 # who builds what: orphan claims branch, compare-and-swap, --json
+    │   ├── board.mjs                  # read the typed board: snapshot + cursor, read, grep (& | parentheses), unfold
     │   ├── claims-board.mjs           # the claims board: one issue, created or edited from the claims branch
     │   ├── announce.mjs               # the notice board: owner lines outrank the command; REBOOT preempts
     │   ├── ledger.mjs                 # each session's live ledger (.nexus/sessions/), star names, fallen = stale beat
@@ -799,6 +800,7 @@ nexus/
     │   ├── __tests__/settle-run.test.mjs # settle end to end in a scratch repo (offline)
     │   ├── __tests__/claims-codec.test.mjs # the claims rules
     │   ├── __tests__/board-codec.test.mjs # the board's rules: dedup (x2), PATCH replacement, FAIL invalidation, the caps
+    │   ├── __tests__/board-read.test.mjs # the board's reading: snapshot order + cursor, grep expressions and errors, unfold
     │   ├── __tests__/claims-board.test.mjs # the board's table and issue (fake gh)
     │   ├── __tests__/push-policy.test.mjs # the push policy, pure
     │   ├── __tests__/install-hooks-run.test.mjs # installed hooks unset GIT_DIR: a gate's scratch repo never writes the real one
@@ -852,7 +854,8 @@ nexus/
     │   ├── __tests__/worktree.test.mjs # worktree close and list in scratch repos (offline)
     │   ├── __tests__/push-policy-hook.test.mjs # the pre-push hook end to end (offline)
     │   ├── __tests__/claims.test.mjs  # claims over git in scratch repos (offline)
-    │   └── __tests__/claims-board-write.test.mjs # the board over git: (x2), replacement, invalidation, caps, a lost race retried, nothing dropped (offline)
+    │   ├── __tests__/claims-board-write.test.mjs # the board over git: (x2), replacement, invalidation, caps, a lost race retried, nothing dropped (offline)
+    │   └── __tests__/board-run.test.mjs # board.mjs over a real claims branch: snapshot + cursor, grep, unfold (offline)
     ├── env/
     │   ├── env.example                # NETLIFY_AUTH_TOKEN, GH_TOKEN, NOTIFY_*, etc.
     │   └── nexus.secrets.json         # → repo root: secrets by name, never a value (customization/secrets.md)
