@@ -493,7 +493,7 @@ export function ghIssue(num, { run = spawnSync } = {}) {
   if (!res || res.status !== 0) return null;
   try {
     const j = JSON.parse(res.stdout);
-    const m = /(?:repos/|github.com/)([^/]+/[^/]+)/.exec(String(j.repository_url ?? j.html_url ?? ''));
+    const m = /\/repos\/([^/]+\/[^/]+)/.exec(String(j.repository_url ?? '')) ?? /^https?:\/\/[^/]+\/([^/]+\/[^/]+)/.exec(String(j.html_url ?? ''));
     return { association: j.author_association ?? '', labels: (j.labels ?? []).map((l) => l.name ?? l), repo: m ? m[1] : '', isPr: Boolean(j.pull_request) };
   } catch {
     return null;
