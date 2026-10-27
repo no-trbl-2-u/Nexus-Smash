@@ -64,8 +64,9 @@ export function cloneBlobless(slug, { cloneUrl = cloneUrlOf } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-upgrade-clone-'));
   const hooks = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-upgrade-hooks-'));
   const url = cloneUrl(slug);
-  const got = gitIn(dir, ['-c', `core.hooksPath=${hooks}`, 'clone', '--quiet', '--filter=blob:none', url, '.']);
+  const got = gitIn(dir, ['-c', `core.hooksPath=${hooks}`, '-c', 'core.longpaths=true', 'clone', '--quiet', '--filter=blob:none', url, '.']);
   fs.rmSync(hooks, { recursive: true, force: true });
+  if (got.ok) gitIn(dir, ['config', 'core.longpaths', 'true']); // the clone's own config: every later call sees it
   if (!got.ok) {
     fs.rmSync(dir, { recursive: true, force: true });
     throw Object.assign(new Error(`could not clone ${slug}: ${redactUrl(got.err)}`), { code: 2 });
@@ -109,52 +110,92 @@ const fence = (text, lang = '') => {
   const f = '`'.repeat(longest + 1);
   return `${f}${lang}\n${text}\n${f}`;
 };
-const cell = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+const ZW = '​';
+/**
+ * Report text reaches the pull request as live markdown, so anything that would act on GitHub is defused: an `@name`
+ * (a ping), `#12` (a cross-reference), and a closing keyword followed by a reference (`fixes #12`, `closes
+ * owner/repo#3`, `resolves <issue url>`), which would close an issue when the pull request merges. A zero-width space
+ * breaks each; the text reads the same.
+ */
+export function defuse(s) {
+  return String(s ?? '')
+    .replace(/\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b(?=[\s:]+(?:#|https?:|[\w.-]+\/[\w.-]+#))/gi, `$1${ZW}`)
+    .replace(/@(?=[A-Za-z0-9_-])/g, `@${ZW}`)
+    .replace(/#(?=\d)/g, `#${ZW}`);
+}
+const cell = (s) => defuse(s).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+const MAX_ROWS = 200;
+const MAX_DIFF = 150;
+const MAX_ARCHIVE = 150;
+const cutLines = (text, max) => {
+  const lines = String(text).split(/\r?\n/);
+  return lines.length <= max ? lines.join('\n') : `${lines.slice(0, max).join('\n')}\n... (${lines.length - max} more lines)`;
+};
 
-/** The report as the pull request's body (markdown): the same content the terminal prints. */
+/**
+ * The report as the pull request's body (markdown): the same content the terminal prints. Built as whole sections,
+ * the ones a reviewer needs first leading (the gate, the warnings, the predicted tick), each section's list or diff
+ * capped by lines and each fence or <details> closed within its section. Past the size limit whole sections from the
+ * end are dropped, so the text is never cut mid-line or inside a fence.
+ */
 export function renderPrBody(report) {
-  const out = [];
   const s = report.sync;
-  out.push(s ? `This pull request syncs the repo to nexus ${s.to.version}: \`${s.from}\` to \`${s.to.ref.slice(0, 12)}\`.`
-    : `This pull request moves the repo from nexus v1 (a phase plan) to v2 (specs and chunks).`);
-  if (report.origin) out.push('', `Made from \`${report.origin.branch}\` @ \`${report.origin.sha.slice(0, 7)}\` of \`${report.repo}\`, in a temporary clone; the gate below ran there before this branch was pushed.`);
-  out.push('', `### Files (${report.files.length})`, '', '| status | path | note |', '|---|---|---|');
-  for (const f of report.files) out.push(`| ${cell(f.status)} | \`${cell(f.path)}\` | ${cell(f.note)} |`);
-  if (report.added?.length) {
-    out.push('', `### New kit content (${report.added.length})`, '');
-    for (const a of report.added) out.push(`- \`${a.path}\` (${a.kind})`);
-  }
-  for (const m of report.merges || []) {
-    out.push('', `### ${m.kind === 'assisted' ? 'Assisted merge' : m.kind === 'conflict' ? 'Conflict' : 'Merged'}: \`${m.path}\`${m.applied ? '' : ' (left as ours)'}`, '');
-    for (const r of m.reasons || []) out.push(`- kept from ours: ${r}`);
-    if (m.diff) out.push('', fence(m.diff, 'diff'));
-  }
-  if (report.archive?.length) {
-    out.push('', `### Archive (+${report.archive.length} line${report.archive.length === 1 ? '' : 's'})`, '', '<details><summary>archive lines</summary>', '', fence(report.archive.map((l) => `+ ${l}`).join('\n')), '', '</details>');
-  }
-  if (report.workflow) {
-    const k = report.workflow.kept;
-    out.push('', '### Workflow', '', `- cron: ${k.cron.length ? k.cron.join(', ') : '(none: dispatch only)'}`, `- ceiling: ${k.ceiling ?? "the kit's"}`, `- model: ${k.model ?? "the kit's"}`);
+  const head = [s ? `This pull request syncs the repo to nexus ${defuse(s.to.version)}: \`${s.from}\` to \`${s.to.ref.slice(0, 12)}\`.`
+    : `This pull request moves the repo from nexus v1 (a phase plan) to v2 (specs and chunks).`];
+  if (report.origin) head.push('', `Made from \`${defuse(report.origin.branch)}\` @ \`${report.origin.sha.slice(0, 7)}\` of \`${defuse(report.repo)}\`, in a temporary clone; the gate below ran there before this branch was pushed.`);
+  const sections = [head.join('\n')];
+  const gate = ['### Gate', ''];
+  for (const g of report.gate || []) gate.push(`- ${g.ok ? (g.skipped ? 'skipped' : 'green') : 'RED'}: ${defuse(g.name)}${g.note ? ` (${defuse(g.note)})` : ''}`);
+  sections.push(gate.join('\n'));
+  const warns = report.warnings || [];
+  const w = [`### Warnings (${warns.length})`, ''];
+  for (const x of warns.slice(0, 100)) w.push(`- ${defuse(x.length > 600 ? `${x.slice(0, 600)}...` : x)}`);
+  if (warns.length > 100) w.push(`- ... and ${warns.length - 100} more`);
+  sections.push(w.join('\n'));
+  if (report.dispatch) {
+    const d = ['### Predicted first tick', ''];
+    if (report.dispatch.pr) d.push(`- until \`NEXUS_LOOP_MODE=owner\` is set (pr mode): ${defuse(report.dispatch.pr.text)}`, `- owner mode: ${defuse(report.dispatch.text)}`);
+    else d.push(`- ${defuse(report.dispatch.text)}`);
+    sections.push(d.join('\n'));
   }
   if (report.knobs?.length) {
     const written = report.knobs.filter((k) => k.at !== 'var' && k.status === 'written');
-    out.push('', '### Knobs written (conservative: behaviour does not change until each is turned up)', '');
-    for (const k of written) out.push(`- \`${k.at === 'section' ? `## ${k.knob}` : k.knob}\`: ${k.value}`);
-    if (!written.length) out.push('- none written');
+    const k = ['### Knobs written (conservative: behaviour does not change until each is turned up)', ''];
+    for (const x of written) k.push(`- \`${x.at === 'section' ? `## ${x.knob}` : x.knob}\`: ${defuse(x.value)}`);
+    if (!written.length) k.push('- none written');
+    sections.push(k.join('\n'));
   }
-  out.push('', `### Warnings (${report.warnings?.length || 0})`, '');
-  for (const w of report.warnings || []) out.push(`- ${w}`);
-  out.push('', '### Gate', '');
-  for (const g of report.gate || []) out.push(`- ${g.ok ? 'green' : 'RED'}: ${g.name}`);
-  if (report.dispatch) {
-    out.push('', '### Predicted first tick', '');
-    if (report.dispatch.pr) {
-      out.push(`- until \`NEXUS_LOOP_MODE=owner\` is set (pr mode): ${report.dispatch.pr.text}`, `- owner mode: ${report.dispatch.text}`);
-    } else out.push(`- ${report.dispatch.text}`);
+  if (report.workflow) {
+    const k = report.workflow.kept;
+    sections.push(['### Workflow', '', `- cron: ${defuse(k.cron.length ? k.cron.join(', ') : '(none: dispatch only)')}`, `- ceiling: ${k.ceiling ?? "the kit's"}`, `- model: ${defuse(k.model ?? "the kit's")}`].join('\n'));
   }
-  out.push('', '---', 'Opened by `nexus upgrade --pr`. Running it again updates this pull request in place.');
-  const text = out.join('\n');
-  return text.length <= BODY_MAX ? text : `${text.slice(0, BODY_MAX)}\n\n(truncated: the full report is what \`nexus upgrade --repo <owner/name>\` prints)`;
+  const files = report.files || [];
+  const f = [`### Files (${files.length})`, '', '| status | path | note |', '|---|---|---|'];
+  for (const x of files.slice(0, MAX_ROWS)) f.push(`| ${cell(x.status)} | \`${cell(x.path)}\` | ${cell(x.note)} |`);
+  if (files.length > MAX_ROWS) f.push('', `... and ${files.length - MAX_ROWS} more files (the terminal report lists all)`);
+  sections.push(f.join('\n'));
+  if (report.added?.length) {
+    const a = [`### New kit content (${report.added.length})`, ''];
+    for (const x of report.added.slice(0, MAX_ROWS)) a.push(`- \`${cell(x.path)}\` (${defuse(x.kind)})`);
+    sections.push(a.join('\n'));
+  }
+  for (const m of report.merges || []) {
+    const t = [`### ${m.kind === 'assisted' ? 'Assisted merge' : m.kind === 'conflict' ? 'Conflict' : 'Merged'}: \`${cell(m.path)}\`${m.applied ? '' : ' (left as ours)'}`, ''];
+    for (const r of m.reasons || []) t.push(`- kept from ours: ${defuse(r)}`);
+    if (m.diff) t.push('', fence(cutLines(m.diff, MAX_DIFF), 'diff'));
+    sections.push(t.join('\n'));
+  }
+  if (report.archive?.length) {
+    const lines = report.archive.map((l) => `+ ${l}`);
+    sections.push([`### Archive (+${report.archive.length} line${report.archive.length === 1 ? '' : 's'})`, '', '<details><summary>archive lines</summary>', '', fence(cutLines(lines.join('\n'), MAX_ARCHIVE)), '', '</details>'].join('\n'));
+  }
+  const foot = '---\nOpened by `nexus upgrade --pr`. Running it again updates this pull request in place.';
+  const note = '(truncated: later sections were left out; the full report is what `nexus upgrade --repo <owner/name>` prints)';
+  const join = (parts) => parts.join('\n\n');
+  if (join([...sections, foot]).length <= BODY_MAX) return join([...sections, foot]);
+  const keep = [...sections];
+  while (keep.length > 1 && join([...keep, note, foot]).length > BODY_MAX) keep.pop();
+  return join([...keep, note, foot]);
 }
 
 const ownCommits = (subjects) => subjects.filter((s) => !OWN_SUBJECTS.some((p) => s.startsWith(p)));
@@ -229,7 +270,7 @@ export async function openPullRequest({ dir, slug, branch, base, baseSha, title,
     fs.rmSync(hooks, { recursive: true, force: true });
     if (!pushed.ok) return { error: `git push of ${branch} failed: ${redactUrl(pushed.err)}` };
   }
-  const found = await gh(['pr', 'list', '--repo', slug, '--state', 'open', '--limit', '100', '--json', 'number,url,headRefName,headRepositoryOwner'], { cwd: dir });
+  const found = await gh(['pr', 'list', '--repo', slug, '--state', 'open', '--head', branch, '--limit', '100', '--json', 'number,url,headRefName,headRepositoryOwner'], { cwd: dir });
   if (!found.ok) return { error: `gh could not list pull requests on ${slug}: ${(found.stderr || found.stdout).trim()}` };
   let open = [];
   try { open = JSON.parse(found.stdout || '[]'); } catch { /* none */ }
