@@ -963,6 +963,7 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/promote.test.mjs',
   'templates/scripts/__tests__/lanes.test.mjs',
   'templates/scripts/__tests__/refill.test.mjs',
+  'templates/scripts/__tests__/research.test.mjs',
   'templates/scripts/__tests__/motion.test.mjs',
   'templates/scripts/__tests__/locks.test.mjs',
   'templates/scripts/__tests__/loop-rows.test.mjs',
@@ -1038,8 +1039,8 @@ const GIT_SUITES = [
 const DOGFOOD_TWINS = [
   'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'board.mjs', 'git/push-policy.mjs',
   'plan/pending.mjs', 'plan/settle.mjs', 'plan/settled.mjs', 'plan/config.mjs', 'plan/footguns.mjs',
-  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs',
-  'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',
+  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs', 'plan/field.mjs',
+  'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'generators/research.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',
   'upgrade-plan.mjs', 'plan/secrets-manifest.mjs', 'secrets.mjs', 'secrets-vault.mjs', 'secrets-keychain.mjs', 'secrets-sinks.mjs',
   'secrets-audit.mjs',
   'secrets-run.mjs', 'secrets-scan.mjs',
