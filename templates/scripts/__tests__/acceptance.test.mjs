@@ -162,6 +162,21 @@ describe('judge', () => {
     assert.equal(writeStepSummary(r, { env: { GITHUB_STEP_SUMMARY: 'x' }, append: () => { throw new Error('disk'); } }), false);
   });
 
+  it('review 4: proof text cannot forge a cell, a column, a link or a tag in the summary', () => {
+    const evil = body('- A2 · `x` | PASS | inject', '- A3 · [a](http://e.test) <img src=x> \\| | pass');
+    const r = judge({ body: evil.replace('Closes A1.', 'Closes A2, A3.'), io: io() });
+    for (const md of [summary(r), stepSummary(r)]) {
+      const rows = md.split('\n').filter((l) => /^\| A\d/.test(l));
+      assert.equal(rows.length, 2);
+      for (const l of rows) {
+        assert.equal(l.split('|').length, 5, l);
+        assert.doesNotMatch(l, /[<>[\]\\`]/);
+        assert.doesNotMatch(l, /\| PASS \|/);
+      }
+      assert.doesNotMatch(md, /[<>[\]]/);
+    }
+  });
+
   it('A2: a PR that closes nothing still writes a summary', () => {
     assert.match(stepSummary(judge({ body: 'nothing', io: io() })), /No acceptance ID is closed/);
   });

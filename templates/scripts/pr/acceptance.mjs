@@ -173,13 +173,20 @@ export function judge({ body, closed = [], io }) {
   return { ok: failures.length === 0, rows, replay, failures };
 }
 
+/** Text from a PR body, made inert in a markdown table cell or bullet: no pipe, backtick, angle bracket, square
+ * bracket, backslash or newline survives, so it cannot add a column, a cell, a link or a tag. Long text is cut. */
+export function esc(text) {
+  const s = String(text ?? '').replace(/[|`<>[\]\\&]|[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return s.length > 200 ? `${s.slice(0, 200)}...` : s;
+}
+
 /** The step-summary table, one row per A-ID. */
 export function summary({ rows, replay }) {
   const out = ['| A-ID | Proof | Result |', '|---|---|---|'];
-  for (const r of rows) out.push(`| ${r.id} | ${r.proof ? `\`${r.proof}\`` : ''} | ${r.status}${r.detail && r.status !== 'pass' ? `: ${r.detail}` : ''} |`);
+  for (const r of rows) out.push(`| ${esc(r.id)} | ${esc(r.proof)} | ${r.status}${r.detail && r.status !== 'pass' ? `: ${esc(r.detail)}` : ''} |`);
   if (replay.length) {
     out.push('', '| Added test | Parent replay |', '|---|---|');
-    for (const r of replay) out.push(`| \`${r.path}\` | ${r.status}${r.detail ? `: ${r.detail}` : ''} |`);
+    for (const r of replay) out.push(`| ${esc(r.path)} | ${r.status}${r.detail ? `: ${esc(r.detail)}` : ''} |`);
   }
   return out.join('\n');
 }
@@ -188,7 +195,7 @@ export function summary({ rows, replay }) {
  * failures. Returned, not written, so a suite can read it. */
 export function stepSummary(result) {
   const out = [`## judge: ${result.ok ? 'pass' : 'fail'}`, '', result.rows.length ? summary(result) : '_No acceptance ID is closed by this PR._'];
-  if (result.failures.length) out.push('', ...result.failures.map((f) => `- ${f}`));
+  if (result.failures.length) out.push('', ...result.failures.map((f) => `- ${esc(f)}`));
   return `${out.join('\n')}\n`;
 }
 
