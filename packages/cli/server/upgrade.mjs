@@ -147,7 +147,7 @@ export function freshWorktree(repo) {
   const sha = gitIn(repo, ['rev-parse', `refs/remotes/origin/${branch}`]).out;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-upgrade-'));
   const hooks = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-upgrade-hooks-'));
-  const added = gitIn(repo, ['-c', `core.hooksPath=${hooks}`, 'worktree', 'add', '--quiet', '--detach', dir, sha]);
+  const added = gitIn(repo, ['-c', `core.hooksPath=${hooks}`, '-c', 'core.longpaths=true', 'worktree', 'add', '--quiet', '--detach', dir, sha]);
   fs.rmSync(hooks, { recursive: true, force: true });
   if (!added.ok) {
     fs.rmSync(dir, { recursive: true, force: true });
