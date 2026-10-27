@@ -18,7 +18,7 @@ const lf = (t) => String(t ?? '').replace(/\r\n/g, '\n');
 const CLAUDE = /^\s*(?:-\s+)?uses:\s*['"]?anthropics\/claude-code-action@/;
 const CHECKOUT = /^\s*(?:-\s+)?uses:\s*['"]?actions\/checkout@/;
 const SETUP = /^\s*(?:-\s+)?uses:\s*['"]?\.\/\.github\/actions\/setup['"]?\s*$/;
-const SECRET = /\$\{\{[^}]*\b(secrets\.|github\.token\b)/;
+export const SECRET = /\$\{\{[^}]*(?:\bsecrets\b|github\s*(?:\.|\[)\s*['"]?token)/;
 /** Step names the kit shipped in a v1 or v2 march job (and the quota patch's): never custom. */
 const KIT_STEPS = new Set(['daily commit ceiling check', 'run /march (cloud mode)', 'open cloud-failed issue if action crashed',
   'quota cache restore', 'quota gate', 'quota read', 'quota cache save', 'pause on the weekly quota', 'idle cache restore',

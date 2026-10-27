@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { upgrade, render, runUpgrade, COMMIT_SUBJECT } from '../server/upgrade.mjs';
-import { parseRepo, slugOfUrl, renderPrBody, cloneBlobless, cloneUrlOf as githubUrl } from '../server/upgrade-remote.mjs';
+import { parseRepo, slugOfUrl, renderPrBody, defuse, cloneBlobless, cloneUrlOf as githubUrl } from '../server/upgrade-remote.mjs';
 import { syncBranch, syncSubject } from '../server/upgrade-sync.mjs';
 
 const scratch = [];
@@ -383,4 +383,71 @@ test('--pr on a v1 repo: the conversion is one commit on nexus/upgrade-v2 and th
   const again = await upgrade({ repo: '.', remote: 'acme/notes', pr: true, cloneUrlOf: urls({ 'acme/notes': bare }), gh, today: '2026-10-27', sleep: async () => {} });
   assert.equal(again.report.pr.action, 'unchanged');
   assert.equal(gh.prs.length, 1);
+});
+
+test('the report is defused before it is a pull request body: no ping, no cross-reference, no closing keyword', () => {
+  assert.ok(!/@[A-Za-z]/.test(defuse('thanks @octocat')));
+  assert.ok(!/#\d/.test(defuse('see #12 and acme/notes#3')));
+  const closing = defuse('fixes #12, Closes acme/notes#3, resolved https://github.com/a/b/issues/9');
+  assert.ok(!/\b(fixes|closes|resolved)\s*:?\s+(#|[\w.-]+\/[\w.-]+#|https)/i.test(closing), closing);
+  assert.equal(defuse('plain text'), 'plain text');
+  const body = renderPrBody({
+    repo: 'acme/notes', origin: { branch: 'main', sha: 'abcdef1234' }, files: [{ status: 'added', path: 'a.md', note: 'cc @octocat fixes #12' }],
+    warnings: ['ping @octocat, this fixes #12'], gate: [{ name: 'plan-check', ok: true }], archive: [], knobs: [],
+    dispatch: { text: 'lane x, closes #4' },
+  });
+  assert.ok(!/@[A-Za-z]/.test(body.replace(/`[^`]*`/g, '')), body);
+  assert.ok(!/#\d/.test(body), body);
+});
+
+test('a large report keeps the gate and warnings first, caps each section, and cuts only between sections', () => {
+  const many = (n) => Array.from({ length: n }, (_, i) => `line ${i} ${'x'.repeat(80)}`);
+  const body = renderPrBody({
+    repo: 'acme/notes', origin: { branch: 'main', sha: 'abcdef1234' }, sync: { from: 'a', to: { version: '2.1.0', ref: 'b'.repeat(40) } },
+    files: many(2000).map((s, i) => ({ status: 'replaced', path: `f${i}`, note: 'kit text' })),
+    warnings: ['w1', 'w2'], gate: [{ name: 'plan-check', ok: true }, { name: 'workflow-lint', ok: false }],
+    merges: [{ kind: 'assisted', path: 'skills/a.md', applied: true, reasons: ['r'], diff: many(2000).join('\n') }],
+    archive: many(2000), knobs: [], added: [],
+  });
+  assert.ok(body.length <= 60000, body.length);
+  assert.ok(body.indexOf('### Gate') < body.indexOf('### Warnings') && body.indexOf('### Warnings') < body.indexOf('### Files'));
+  assert.ok(body.includes('- RED: workflow-lint'), 'the gate survives');
+  assert.equal((body.match(/^```/gm) || []).length % 2, 0, 'every fence is closed');
+  assert.equal((body.match(/<details>/g) || []).length, (body.match(/<\/details>/g) || []).length);
+  assert.match(body, /\.\.\. and 1800 more files/);
+  assert.match(body, /\(\d+ more lines\)/);
+  assert.ok(body.endsWith('Running it again updates this pull request in place.'));
+});
+
+test('--repo acme/notes falls back to the slug when a folder of that name is not a git repo, and warns when it is one', async () => {
+  const k = kitRepo();
+  const o = v2Origin();
+  const cwd = tmp('nexus-slug-cwd-');
+  fs.mkdirSync(path.join(cwd, 'acme', 'notes'), { recursive: true });
+  const out = sink();
+  const err = sink();
+  const seams = { kit: k.kit, cloneUrlOf: urls({ 'acme/notes': o.bare }), sleep: async () => {} };
+  const code = await runUpgrade(['--repo', 'acme/notes', '--json'], { cwd, out, err, assistOf: () => null, today: '2026-10-27', seams });
+  assert.notEqual(code, 2, `${out.text()}\n${err.text()}`);
+  assert.match(out.text(), /"origin"[\s\S]*acme\/notes|"url"/);
+  assert.equal(err.text(), '');
+  git(path.join(cwd, 'acme', 'notes'), 'init', '-q', '-b', 'main');
+  const e2 = sink();
+  await runUpgrade(['--repo', 'acme/notes', '--json'], { cwd, out: sink(), err: e2, assistOf: () => null, today: '2026-10-27', seams });
+  assert.match(e2.text(), /is both a folder here and a GitHub repo; using the folder/);
+});
+
+test('the open pull request is looked up by its head branch', async () => {
+  const k = kitRepo();
+  const o = v2Origin();
+  const gh = ghStub();
+  await run(k.kit, { cloneUrlOf: urls({ 'acme/notes': o.bare }), gh });
+  const list = gh.with('pr list')[0];
+  assert.equal(list[list.indexOf('--head') + 1], BRANCH);
+});
+
+test('a blobless clone carries core.longpaths in its own config', () => {
+  const o = v2Origin();
+  const c = cloneBlobless('acme/notes', { cloneUrl: () => o.bare });
+  try { assert.equal(git(c.dir, 'config', '--local', '--get', 'core.longpaths'), 'true'); } finally { c.remove(); }
 });

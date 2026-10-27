@@ -535,6 +535,8 @@ nexus/
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
 │   ├── surface.mjs                        # the surface leg's checker: refine:/lessons: commits in origin/main..HEAD against surface.json
 │   ├── __tests__/surface.test.mjs         # its pure suite (scripts leg)
+│   ├── refine.mjs                         # /refine's script: gates on Improve: bold, writes .scratch/refine/<verb>/context/, validates a proposal (2 inv + 2 dom citing evidence, or KEEP_BASE)
+│   ├── __tests__/refine.test.mjs          # its pure suite (scripts leg)
 │   ├── __tests__/surface-run.test.mjs     # its scratch-repo suite (scripts-git)
 │   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
 │   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)
@@ -629,6 +631,7 @@ nexus/
 │   ├── plot.md                        # /plot — a task into the plan with its place in line (+ bug.md: /bug)
 │   ├── messy.md                       # /messy — a raw dump into specs (the GUI's explode)
 │   ├── tidy.md                        # /tidy — clear dead claims, close idle worktrees (worktree.mjs)
+│   ├── refine.md                      # /refine <verb> — under Improve: bold, evidence context + inv/dom proposals (refine.mjs); never dispatched by march
 │   ├── design.md                      # /design — the Claude Design prompt, addenda and ingest (scripts/design/; + design/ingest.md, design/render.md, design/port.md)
 │   ├── rebooting.md                   # /rebooting, /reboot-ready, /reboot-resume — the reboot train
 │   ├── march.lanes.md                 # project lanes for march (+ iterate.lanes.md); empty in nexus but for the example

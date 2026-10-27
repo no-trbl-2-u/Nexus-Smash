@@ -167,6 +167,7 @@ verbs — a kit ships docs, templates and the GUI.
 | `bug` | `skills/bug.md` | Reproduce; fix now through `/plot asap … and do`, or plot it. |
 | `messy` | `skills/messy.md` | A raw dump (kept untracked in `plan/messy/`) clustered and refined into specs through a pending file. |
 | `tidy` | `skills/tidy.md` | Clear dead claims; offer idle worktrees and merged branches (`npm run worktree -- list`). |
+| `refine` | `skills/refine.md` | Night verb, `Improve: bold` only: evidence context for one verb, two `inv` and two `dom` edit proposals or `KEEP_BASE` (`scripts/refine.mjs`). Never dispatched by march. |
 | `design` | `skills/design.md` | Opt-in Claude Design round trip: `prompt` and `addendum` from the plan (`scripts/design/prompt.mjs`). |
 | `rebooting` | `skills/rebooting.md` | The reboot train (with `reboot-ready`, `reboot-resume`): park every loop, resume each from its ledger. |
 | `ship-a-chunk` | `skills/ship-a-chunk.md` | Ship one chunk of the kit's plan and close it (the build steps `/next`'s builder follows). |
