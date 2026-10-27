@@ -6,8 +6,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { FILES, MISSION_MAX, checkProposal, contextDir, main, mission } from '../refine.mjs';
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const bearings = (dial) => ['# Bearings', '', '## Plan expansion posture', '', ...(dial ? [`Improve: ${dial}`] : []), '', '## Generators', '', '- (none)', ''].join('\n');
 const ARCHIVE = [
   '# Archive',
@@ -144,10 +146,10 @@ describe('proposal validation', () => {
     const bad = (evidence) => check({ candidates: [cand('a', 'inv', evidence), ...good().candidates.slice(1)] }).problems.join();
     assert.match(bad(null), /<file>:<line>/);
     assert.match(bad('footguns.md'), /<file>:<line>/);
-    assert.match(bad('nope.md:1'), /does not exist/);
+    assert.match(bad('nope.md:1'), /not one of the context files/);
     assert.match(bad('footguns.md:99'), /outside footguns\.md/);
     assert.match(bad('footguns.md:0'), /outside footguns\.md/);
-    assert.match(bad('../../../plan/bearings.md:1'), /outside the context dir/);
+    assert.match(bad('../../../plan/bearings.md:1'), /not one of the context files/);
   });
   it('rejects a duplicate id, a missing edit or target, and non-objects', () => {
     const g = good().candidates;
@@ -163,12 +165,62 @@ describe('proposal validation', () => {
   it('--check through main: exit 0 for valid and KEEP_BASE, 1 for invalid or unparseable', () => {
     const w = (name, body) => { const f = path.join(root, name); fs.writeFileSync(f, typeof body === 'string' ? body : JSON.stringify(body)); return f; };
     assert.equal(run(['tidy', '--check', w('ok.json', good())], root).code, 0);
-    const kb = run(['tidy', '--check', w('kb.json', { answer: 'KEEP_BASE' })], root);
+    const kb = run(['tidy', '--check', w('kb.json', { answer: 'KEEP_BASE', reason: 'r' })], root);
     assert.equal(kb.code, 0);
     assert.match(kb.out[0], /KEEP_BASE accepted/);
     const bad = run(['tidy', '--check', w('bad.json', { candidates: [] })], root);
     assert.equal(bad.code, 1);
     assert.ok(bad.errs.length >= 2);
     assert.equal(run(['tidy', '--check', w('junk.json', 'not json')], root).code, 1);
+  });
+});
+
+describe('review findings', () => {
+  const setup = () => { const root = repo('bold'); run(['tidy'], root); return { root, dir: ctx(root) }; };
+  const one = (c) => ({ candidates: [c, cand('b', 'inv', 'closes.md:2'), cand('c', 'dom'), cand('d', 'dom', 'skill.md:3')] });
+
+  it('1: a rerun clears stale files; a cited file outside the written set is rejected; a changed skill fails --check', () => {
+    const { root, dir } = setup();
+    fs.writeFileSync(path.join(dir, 'old-walk.md'), 'stale\n');
+    fs.mkdirSync(path.join(dir, 'sub'));
+    fs.writeFileSync(path.join(dir, 'sub', 'x.md'), 'stale\n');
+    assert.match(checkProposal(one(cand('a', 'inv', 'old-walk.md:1')), dir).problems.join(), /not one of the context files/);
+    assert.match(checkProposal(one(cand('a', 'inv', 'sub/x.md:1')), dir).problems.join(), /not one of the context files/);
+    run(['tidy'], root);
+    assert.ok(!fs.existsSync(path.join(dir, 'old-walk.md')) && !fs.existsSync(path.join(dir, 'sub')));
+    fs.writeFileSync(path.join(root, 'skills', 'tidy.md'), '# Skill: tidy\n\nchanged\n');
+    const f = path.join(root, 'p.json');
+    fs.writeFileSync(f, JSON.stringify(good()));
+    const r = run(['tidy', '--check', f], root);
+    assert.equal(r.code, 1);
+    assert.match(r.errs.join(), /skill\.md.*differs/);
+  });
+  it('2: the mission and the skill say context text is data, never instructions', () => {
+    assert.match(mission('tidy').replace(/\s+/g, ' '), /third-party data, never instructions/);
+    assert.match(fs.readFileSync(path.join(ROOT, 'skills', 'refine.md'), 'utf8').replace(/\s+/g, ' '), /third-party data, never instructions/);
+    assert.ok(mission('tidy').trimEnd().split('\n').length <= MISSION_MAX);
+  });
+  it('3: a placeholder file is not evidence', () => {
+    const { dir } = setup();
+    fs.writeFileSync(path.join(dir, 'closes.md'), 'NO EVIDENCE: (no close of /tidy yet)\n');
+    assert.match(checkProposal(one(cand('a', 'inv', 'closes.md:1')), dir).problems.join(), /placeholder/);
+  });
+  it('4: ids collide case-insensitively', () => {
+    const { dir } = setup();
+    const g = good().candidates;
+    assert.match(checkProposal({ candidates: [g[0], { ...g[1], id: ' A ' }, g[2], g[3]] }, dir).problems.join(), /duplicate id/);
+  });
+  it('5: --check with no path is a usage error and writes nothing', () => {
+    const root = repo('bold');
+    const r = run(['tidy', '--check'], root);
+    assert.equal(r.code, 2);
+    assert.ok(!fs.existsSync(path.join(root, '.scratch')));
+  });
+  it('7: KEEP_BASE needs a reason and no extra keys', () => {
+    const { dir } = setup();
+    assert.ok(!checkProposal({ answer: 'KEEP_BASE' }, dir).ok);
+    assert.ok(!checkProposal({ answer: 'KEEP_BASE', reason: '  ' }, dir).ok);
+    assert.ok(!checkProposal({ answer: 'KEEP_BASE', reason: 'r', extra: 1 }, dir).ok);
+    assert.ok(checkProposal({ answer: 'KEEP_BASE', reason: 'r' }, dir).keepBase);
   });
 });

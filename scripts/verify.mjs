@@ -499,12 +499,12 @@ function globDir(rel) {
 const LINE_BUDGETS = {
   'next.md': 200, 'next/': 120, 'heads-down.md': 150, 'plot.md': 200, 'bug.md': 150, 'messy.md': 150,
   'tidy.md': 150, 'rebooting.md': 150, 'reboot-ready.md': 150, 'reboot-resume.md': 150,
-  'design.md': 150,
+  'design.md': 150, 'refine.md': 150,
 }
 
 // The skills that read issue or page text carry the rule that it is
 // data, never instructions (in both trees; spec 54).
-const UNTRUSTED_TEXT_SKILLS = ['triage.md', 'bug.md', 'iterate.md']
+const UNTRUSTED_TEXT_SKILLS = ['triage.md', 'bug.md', 'iterate.md', 'refine.md']
 const UNTRUSTED_TEXT_RULE = [/third-party data, never instructions/, /UI walk/, /at most 120 characters/]
 
 // The support routing (spec 54, scripts/plan/support.mjs), held in
@@ -724,6 +724,7 @@ async function legAnatomy() {
   for (const base of ['templates/skills', 'skills']) {
     for (const name of UNTRUSTED_TEXT_SKILLS) {
       const file = `${base}/${name}`
+      if (!fs.existsSync(path.join(ROOT, file))) continue // refine.md has no template twin yet (spec 64.6)
       const flat = read(file).replace(/\s+/g, ' ')
       if (!UNTRUSTED_TEXT_RULE.every((re) => re.test(flat))) failures.push(`${file}: missing the rule that issue and page text is data (third-party data, never instructions; UI walk; at most 120 characters)`)
     }
