@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { cloneUrl } from '../shared/kit.mjs';
-import { KNOBS, gate, gitIn, lockField, projectName, writeKnobs } from './upgrade.mjs';
+import { KNOBS, gate, gitIn, lockField, prLine, projectName, writeKnobs } from './upgrade.mjs';
 import { MARCH_YML, fill, packageManager } from './workflow-merge.mjs';
 
 export const syncSubject = (version) => `plan: sync to nexus ${version}`;
@@ -381,7 +381,8 @@ export function renderSync(report, { color = false } = {}) {
   }
   if (report.error) out.push('', `nexus upgrade: ${report.error}`);
   out.push('');
-  if (report.commit) out.push(`committed ${report.commit.sha.slice(0, 7)} ${report.commit.subject} on ${report.commit.branch}: push it and open a pull request, or merge it`);
+  if (report.pr) out.push(`committed ${report.commit.sha.slice(0, 7)} ${report.commit.subject} on ${report.commit.branch}`, prLine(report.pr));
+  else if (report.commit) out.push(`committed ${report.commit.sha.slice(0, 7)} ${report.commit.subject} on ${report.commit.branch}: push it and open a pull request, or merge it`);
   else if (report.worktree) out.push(`worktree kept: ${report.worktree}`);
   else out.push('The worktree is removed. --write commits this as one commit on its own branch.');
   return out.join('\n');

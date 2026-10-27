@@ -2,7 +2,7 @@
 // a missing or red proof, and the parent replay with its guard-test escape. node:test, io faked, no git, no spawn.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { childEnv, closedFromBody, closedFromDiff, countPassed, isTestFile, judge, parseAcceptance, parseGuards, summary } from '../pr/acceptance.mjs';
+import { childEnv, closedFromBody, closedFromDiff, countPassed, isTestFile, judge, parseAcceptance, parseGuards, stepSummary, summary, writeStepSummary } from '../pr/acceptance.mjs';
 
 const io = ({ files = [], red = [], added = [], onBase = [] } = {}) => ({
   exists: (p) => files.includes(p),
@@ -146,5 +146,38 @@ describe('judge', () => {
     const r = judge({ body: body('- A1 · (no test: prose)'), closed: ['A2'], io: io() });
     const rows = summary(r).split('\n').filter((l) => /^\| A\d/.test(l));
     assert.equal(rows.length, 2);
+  });
+
+  it('A2: the step summary has one row per A-ID, and is appended only when GITHUB_STEP_SUMMARY is set', () => {
+    const r = judge({ body: body('- A1 · (no test: prose)'), closed: ['A2', 'A3'], io: io() });
+    const md = stepSummary(r);
+    assert.match(md, /^## judge: fail\n/);
+    assert.equal(md.split('\n').filter((l) => /^\| A\d/.test(l)).length, 3);
+    assert.match(md, /- A2: closed with no proof line/);
+    const writes = [];
+    assert.equal(writeStepSummary(r, { env: { GITHUB_STEP_SUMMARY: 'sum.md' }, append: (f, t) => writes.push([f, t]) }), true);
+    assert.deepEqual(writes.map((w) => w[0]), ['sum.md']);
+    assert.ok(writes[0][1].includes('| A1 |'));
+    assert.equal(writeStepSummary(r, { env: {}, append: () => assert.fail('wrote with no target') }), false);
+    assert.equal(writeStepSummary(r, { env: { GITHUB_STEP_SUMMARY: 'x' }, append: () => { throw new Error('disk'); } }), false);
+  });
+
+  it('review 4: proof text cannot forge a cell, a column, a link or a tag in the summary', () => {
+    const evil = body('- A2 · `x` | PASS | inject', '- A3 · [a](http://e.test) <img src=x> \\| | pass');
+    const r = judge({ body: evil.replace('Closes A1.', 'Closes A2, A3.'), io: io() });
+    for (const md of [summary(r), stepSummary(r)]) {
+      const rows = md.split('\n').filter((l) => /^\| A\d/.test(l));
+      assert.equal(rows.length, 2);
+      for (const l of rows) {
+        assert.equal(l.split('|').length, 5, l);
+        assert.doesNotMatch(l, /[<>[\]\\`]/);
+        assert.doesNotMatch(l, /\| PASS \|/);
+      }
+      assert.doesNotMatch(md, /[<>[\]]/);
+    }
+  });
+
+  it('A2: a PR that closes nothing still writes a summary', () => {
+    assert.match(stepSummary(judge({ body: 'nothing', io: io() })), /No acceptance ID is closed/);
   });
 });

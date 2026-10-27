@@ -155,7 +155,7 @@ templates/
 │   ├── cloud/cadence.mjs              (the cadence presets calm, steady, eager, sprint and off: march.yml's and heartbeat.yml's Cadence step turns NEXUS_CADENCE into the ceiling, chain max, idle backoff and heartbeat hours at run time; apply writes a preset's cron line; realized is heartbeat.yml's alarm when scheduled runs fall under 40% of the slots the cron promised in 72h; bootstrap reads its table)
 │   ├── cloud/nudge-check.mjs          (nudge.yml's check: the payload's filters again, no pending march or night run, under NEXUS_EVENT_MAX event ticks in 24h; then one gh workflow run; fails closed)
 │   ├── pr/resolve.mjs                 (pr-resolve.yml's resolver: merge main into conflicted PRs, never forced)
-│   ├── pr/acceptance.mjs              (the judge's logic: the PR body's `
+│   ├── pr/acceptance.mjs              (the judge's logic: proof lines in a PR body, each run; the parent replay of added tests (guard-test: excuses one); the step summary)
 │   ├── design/ingest.mjs              (/design ingest: an export folder -> design/handoff/<date>/ with manifest.json, a sha256 per file, and a README; check, rehash; --into for a package)
 │   ├── design/render.mjs              (a handoff's boards as PNGs at their own size, night or dawn, through the installed Chrome's --screenshot; needs Chrome)
 │   ├── design/board-runtime.js        (the stand-in for the design tool's runtime that render.mjs runs in Chrome: x-dc, holes, sc-if, sc-for, dc-import)
