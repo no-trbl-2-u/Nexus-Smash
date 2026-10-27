@@ -38,11 +38,20 @@ its own cadence.
    node scripts/pulse.mjs --motion
    node scripts/cloud/quota.mjs show
    node scripts/plan/support.mjs digest --notify
+   node scripts/eval/ledger.mjs --write
    ```
 
    `quota.mjs show` is the last cached `seven_day` reading
    (night's gate restored it; locally, unknown); `While you
    were out` opens with that line as is.
+
+   `ledger.mjs --write` regenerates `plan/eval/ledger.md`, the
+   escape ledger (spec 61): over the last 10 merged PRs, how
+   many merged before their checks finished, with no `judge`
+   run, with acceptance lines that carry no proof, or needed
+   a fix within 7 days. It prints one line; `Queues now`
+   carries it as the Ledger line. gh read only; it fails soft
+   (no ledger line) without gh.
 
    `support.mjs digest` is the Support line (spec 54): open
    user issues, the mean time to first response and the mean
@@ -83,7 +92,8 @@ its own cadence.
    line grows the >21-day count alongside the existing
    pending-count and oldest-age numbers, e.g. "9 pending (3
    >21d), oldest 30d", then the Support line as is, then the
-   Improve line (`node scripts/plan/improve.mjs --line`)),
+   Improve line (`node scripts/plan/improve.mjs --line`), then
+   the Ledger line as is),
    `Needs you` (each `escalate #N` line first, then blocked
    rows, needs-user issues, `[needs-user-call]`s, plus — when
    either ≥5 candidates are pending >21 days or the oldest
@@ -118,7 +128,8 @@ its own cadence.
 ## 4. Hard rules
 
 1. Overwrite `plan/DIGEST.md` whole; history lives in git.
-2. Ship nothing else — breadth failures become findings, not
+2. Ship nothing else but the regenerated
+   `plan/eval/ledger.md` — breadth failures become findings, not
    fixes. The night shift briefs; the dispatcher ships.
 3. Proposals, never actions (the meta-loop rail).
 4. A quiet day still gets a digest — "quiet" is information.
@@ -147,6 +158,7 @@ node scripts/pulse.mjs               # local queue/plan numbers
 gh run list --workflow march -L 20   # the invisible no-ops
 node scripts/plan/support.mjs digest # the Support line + needs-user escalations
 node scripts/plan/improve.mjs --line # the Improve line: the dial and its overrides
+node scripts/eval/ledger.mjs --write # plan/eval/ledger.md + the Ledger line
 SMOKE_SAMPLE=full pnpm e2e           # the nightly breadth leg
 pnpm verify
 git commit -m "digest: <YYYY-MM-DD>"   # then land per owner mode (next/land.md §6)

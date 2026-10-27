@@ -787,6 +787,7 @@ nexus/
     │   ├── cloud/nudge-check.mjs      # nudge.yml's check: who starts a tick, the queue, NEXUS_EVENT_MAX; the one dispatch
     │   ├── pr/resolve.mjs             # pr-resolve's resolver: merge main into conflicted PRs
     │   ├── pr/acceptance.mjs          # the judge's logic: proof lines in a PR body, each run; the parent replay of added tests (guard-test: excuses one)
+    │   ├── eval/ledger.mjs            # the escape ledger: merged PRs counted for early merges, no judge run, unproven acceptance lines and fixes within 7 days -> plan/eval/ledger.md; /digest prints its line
     │   ├── design/ingest.mjs          # /design ingest: an export folder -> design/handoff/<date>/ + manifest.json (sha256 per file) + README; check, rehash
     │   ├── design/render.mjs          # a handoff's boards as PNGs at their size, night or dawn, via the installed Chrome (+ board-runtime.js)
     │   ├── design/compare.mjs         # a board PNG against the app's: the percent that differs, a diff PNG (+ png.mjs)
@@ -797,6 +798,7 @@ nexus/
     │   ├── __tests__/loop-issue.test.mjs # unit tests, node:test, no devDeps
     │   ├── __tests__/acceptance.test.mjs # the judge's logic: proof lines, missing or red proofs, the parent replay and guard-test; io faked
     │   ├── __tests__/acceptance-run.test.mjs # the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree (scripts-git)
+    │   ├── __tests__/eval-ledger.test.mjs # the escape ledger: the four counts, the fix window, the file and its line; gh faked
     │   ├── __tests__/plan-check.test.mjs # unit tests for plan-check.mjs
     │   ├── __tests__/pending.test.mjs # pending files, config, settled view
     │   ├── __tests__/settle.test.mjs  # settle's pure functions

@@ -38,11 +38,20 @@ Never dispatched by `/march` — it is its own loop shape (see
    node scripts/plan/unreleased.mjs
    node templates/scripts/cloud/quota.mjs show
    node scripts/plan/support.mjs digest --notify
+   node scripts/eval/ledger.mjs --write
    ```
 
    `quota.mjs show` is the last cached `seven_day` reading
    (night's gate restored it); `While you were out` opens with
    that line as is.
+
+   `ledger.mjs --write` regenerates `plan/eval/ledger.md`, the
+   escape ledger (spec 61): over the last 10 merged PRs, how
+   many merged before their checks finished, with no `judge`
+   run, with acceptance lines that carry no proof, or needed
+   a fix within 7 days. It prints one line; `Queues now`
+   carries it as the Ledger line. gh read only; it fails soft
+   (no ledger line) without gh.
 
    `support.mjs digest` is the Support line (spec 54): open
    user issues, the mean time to first response and the mean
@@ -81,7 +90,8 @@ Never dispatched by `/march` — it is its own loop shape (see
    pending (6 >21d), oldest 58d", then the Support line as is,
    then the Improve line
    (`node scripts/plan/improve.mjs --line`, e.g. "improve bold;
-   promote owner (override)")), `Unreleased CLI fixes`
+   promote owner (override)"), then the Ledger line as is),
+   `Unreleased CLI fixes`
    (`unreleased.mjs`'s output as is: the count since the tag and
    one `<sha> <subject>` line each, so the owner can tag
    `cli-v*`; "none since cli-v<x>" when the tag is current),
@@ -123,7 +133,8 @@ Never dispatched by `/march` — it is its own loop shape (see
 ## 4. Hard rules
 
 1. Overwrite `plan/DIGEST.md` whole; history lives in git.
-2. Ship nothing else — no doc fixes, no template edits; file
+2. Ship nothing else but the regenerated
+   `plan/eval/ledger.md` — no doc fixes, no template edits; file
    findings instead. The night shift briefs; the dispatcher
    ships.
 3. Proposals, never actions (the meta-loop rail).
@@ -151,6 +162,7 @@ node scripts/pulse.mjs               # local queue/plan numbers
 node scripts/plan/unreleased.mjs     # packages/cli commits since the last cli-v* tag
 node scripts/plan/support.mjs digest # the Support line + needs-user escalations
 node scripts/plan/improve.mjs --line # the Improve line: the dial and its overrides
+node scripts/eval/ledger.mjs --write # plan/eval/ledger.md + the Ledger line
 node scripts/verify.mjs
 git commit -m "digest: <YYYY-MM-DD>"   # then land per owner mode (next/land.md §6)
 ```
