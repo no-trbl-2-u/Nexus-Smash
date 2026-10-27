@@ -987,6 +987,7 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/design-port.test.mjs',
   'templates/scripts/__tests__/support.test.mjs',
   'templates/scripts/__tests__/ui-walk.test.mjs',
+  'templates/scripts/__tests__/acceptance.test.mjs',
   'scripts/__tests__/url-path-lint.test.mjs',
   'scripts/__tests__/bare-push.test.mjs',
   'scripts/__tests__/probe-latency.test.mjs',
@@ -1018,6 +1019,7 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/heartbeat-motion.test.mjs',
   'templates/scripts/__tests__/heartbeat-realized.test.mjs',
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
+  'templates/scripts/__tests__/acceptance-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
   'scripts/__tests__/improve.test.mjs',
   'scripts/__tests__/surface-run.test.mjs',
@@ -1038,6 +1040,7 @@ const DOGFOOD_TWINS = [
   'design/ingest.mjs',
   'design/png.mjs', 'design/compare.mjs', 'design/render.mjs', 'design/board-runtime.js',
   'design/port-map.mjs', 'design/port.workflow.js',
+  'pr/acceptance.mjs',
 ]
 // The steer hook runs in nexus's own sessions from .claude/hooks/, byte for byte the one adopters copy.
 const HOOK_TWINS = ['steer.mjs']
@@ -1129,7 +1132,27 @@ async function legWorkflows() {
   const failures = problems.map((p) => { const m = /^(.*?\.ya?ml)(:.*)$/s.exec(p); return m ? normalize(path.relative(ROOT, m[1])) + m[2] : p })
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
-  return { failures, note: `${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...prFlowCheck())
+  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.
+// Both pr-flow.yml copies carry a step gated on merged == true and a
+// nexus/ head ref that deletes the ref, and the two are twins.
+function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROOT, f))) {
+  const failures = []
+  const files = ['.github/workflows/pr-flow.yml', 'templates/.github/workflows/pr-flow.yml']
+  const texts = []
+  for (const file of files) {
+    if (!exists(file)) { failures.push(`${file}: missing (pr-flow releases claims and deletes merged loop branches)`); continue }
+    const text = readFile(file).replace(/\r\n/g, '\n')
+    texts.push(text)
+    const i = text.indexOf('Delete the merged loop branch')
+    const step = i < 0 ? '' : text.slice(i)
+    if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
+  }
+  if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
+  return failures
 }
 
 // Spec 54: the event tick. templates/.github/workflows/nudge.yml
