@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { kitIdentity } from '../server/upgrade-sync.mjs';
 
 /** Where a listed kit path is written under `out`: its templates/ path. */
 export const bundledPath = (kit) => kit.replace(/^templates\//, '');
@@ -37,7 +38,8 @@ export async function bundleUpgrade({ nexus, out }) {
     fs.mkdirSync(path.dirname(to), { recursive: true });
     fs.copyFileSync(path.join(nexus, ...kit.split('/')), to);
   }
-  fs.writeFileSync(path.join(out, 'files.json'), `${JSON.stringify({ files, seeds: SEEDS }, null, 2)}\n`);
+  // `kit`: the kit commit this bundle was built from ({ version, ref }); a v2 repo's sync moves its lock there.
+  fs.writeFileSync(path.join(out, 'files.json'), `${JSON.stringify({ files, seeds: SEEDS, kit: kitIdentity(nexus) }, null, 2)}\n`);
   const { build } = await import(pathToFileURL(textScript).href);
   fs.writeFileSync(path.join(out, KIT_TEXT), `${JSON.stringify(await build(nexus), null, 2)}\n`);
   return { files, missing };

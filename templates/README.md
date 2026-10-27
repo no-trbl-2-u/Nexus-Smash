@@ -130,6 +130,7 @@ templates/
 │   ├── plan/state.mjs                 (the state diet: check fails a queue header over 20 lines or a queue file over NEXUS_STATE_MAX_KB, default 256; compact --write deletes Done rows closed more than 30 days ago, dated by a closed stamp, the blame of the heading, then the latest date)
 │   ├── generators/motion.mjs          (generator: a stalled motion pulse becomes one AUDIT HIGH row a week about the loop itself)
 │   ├── plan/support.mjs               (the Support level, NEXUS_SUPPORT over plan/bearings.md: triage's route of a collaborator's bug to /bug, the asap_cap count of issue-born Asap chunks, march's keep-going after triage and its Asap-before-critique check, Step 1.5's SLA (a queued issue past sla_hours plotted Asap) and the aged user-row score (+1 per 12h, cap +4); gh read only, but `tell`, which comments on and closes the issue a landed `Refs #N` fix names, holding a published package's fix open for its release; `digest`, /digest's Support line (open user issues, mean time to first response and to close over 7 days) and the `triage:needs-user` issues past escalate_days it tops Needs you with and notifies)
+│   ├── plan/improve.mjs              (the improvement dial: `Improve: off|gentle|steady|bold` in plan/bearings.md sets each expansion knob's default, a knob's own line overrides it, prints every knob with its source; warns when NEXUS_SUPPORT or NEXUS_CADENCE disagrees; absent reads as gentle)
 │   ├── plan/secrets-manifest.mjs      (nexus.secrets.json's shape and the .env.example import; plan-check imports it)
 │   ├── secrets.mjs                    (secrets by name: status, set from stdin, import names or --store a real .env, list, check, push to sinks, audit, request; never prints a value)
 │   ├── secrets-vault.mjs              (the vault: .env in the repo, .env.workspace at the workspace root, the opt-in keychain; values to code only)
@@ -154,6 +155,7 @@ templates/
 │   ├── cloud/cadence.mjs              (the cadence presets calm, steady, eager, sprint and off: march.yml's and heartbeat.yml's Cadence step turns NEXUS_CADENCE into the ceiling, chain max, idle backoff and heartbeat hours at run time; apply writes a preset's cron line; realized is heartbeat.yml's alarm when scheduled runs fall under 40% of the slots the cron promised in 72h; bootstrap reads its table)
 │   ├── cloud/nudge-check.mjs          (nudge.yml's check: the payload's filters again, no pending march or night run, under NEXUS_EVENT_MAX event ticks in 24h; then one gh workflow run; fails closed)
 │   ├── pr/resolve.mjs                 (pr-resolve.yml's resolver: merge main into conflicted PRs, never forced)
+│   ├── pr/acceptance.mjs              (the judge's logic: the PR body's `
 │   ├── design/ingest.mjs              (/design ingest: an export folder -> design/handoff/<date>/ with manifest.json, a sha256 per file, and a README; check, rehash; --into for a package)
 │   ├── design/render.mjs              (a handoff's boards as PNGs at their own size, night or dawn, through the installed Chrome's --screenshot; needs Chrome)
 │   ├── design/board-runtime.js        (the stand-in for the design tool's runtime that render.mjs runs in Chrome: x-dc, holes, sc-if, sc-for, dc-import)
@@ -164,11 +166,14 @@ templates/
 │   ├── upgrade-plan.mjs               (v1 to v2 plan converter, run once from nexus by playbooks/upgrade.md Step 4; omit otherwise)
 │   ├── ui-walk.mjs                    (the scripted walk, reader Path A2 and /iterate dimension H: plan/bearings.md's UI routes in Chrome at desktop and mobile -> .nexus/walk/<iso>/walk.json + one PNG a screen; playwright-core when present, else zero-dependency CDP over Node 22's WebSocket, else --screenshot; anonymous; UI: none walks nothing)
 │   ├── __tests__/loop-issue.test.mjs  (unit tests, node:test, no devDeps)
+│   ├── __tests__/acceptance.test.mjs  (the judge's logic on faked io: proof lines, a closed ID with none, a missing or red proof, the parent replay and its guard-test)
+│   ├── __tests__/acceptance-run.test.mjs  (the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree)
 │   ├── __tests__/plan-check.test.mjs  (unit tests for plan-check.mjs)
 │   ├── __tests__/pending.test.mjs     (pending files, the config, the settled view)
 │   ├── __tests__/settle.test.mjs      (settle's pure functions)
 │   ├── __tests__/settle-run.test.mjs  (settle end to end in a scratch git repo; slower, offline)
 │   ├── __tests__/claims-codec.test.mjs  (the claims rules, pure)
+│   ├── __tests__/board-codec.test.mjs  (the board's rules, pure: dedup, PATCH replacement, FAIL invalidation, the caps)
 │   ├── __tests__/claims-board.test.mjs  (the board's table and its one issue, with a fake gh; pure)
 │   ├── __tests__/push-policy.test.mjs  (the push policy, pure)
 │   ├── __tests__/progress.test.mjs    (the progress view, pure)
@@ -221,7 +226,8 @@ templates/
 │   ├── __tests__/bootstrap.test.mjs   (bootstrap's cloud-loop plan: the loop mode, the PR-mode files, the placeholders; pure)
 │   ├── __tests__/worktree.test.mjs    (worktree close and list in scratch repos; slower, offline)
 │   ├── __tests__/push-policy-hook.test.mjs  (the pre-push hook end to end in a scratch git repo; slower, offline)
-│   └── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   ├── __tests__/claims.test.mjs      (claims over git in scratch repos; slower, offline)
+│   └── __tests__/claims-board-write.test.mjs  (the board over git: (x2), replacement, invalidation, caps, a lost race retried and nothing dropped; slower, offline)
 ├── env/
 │   ├── env.example                    → repo's .env.example
 │   └── nexus.secrets.json             → repo root (secrets by name, never a value; nexus/customization/secrets.md)
@@ -317,6 +323,58 @@ line, the archive) is explained in
 
 For these, the templates are **scaffolds** showing the shape;
 adapt content to your reality.
+
+## Kit script tests in your gate
+
+> `scripts/__tests__/` copies in with the scripts, but not every
+> suite belongs in your `npm test`. Run the pure ones; leave the
+> kit's own wiring checks to the kit.
+
+Measured by copying `templates/scripts/`, `skills/`, `.github/`
+and `.claude/` into a scratch repo (no `bootstrap.mjs`, as an
+adopt prune leaves it) and running each suite with `node --test`
+on a Windows laptop, one after another. A Linux runner is
+usually faster; read the seconds as an order of magnitude.
+
+**Keep in the gate (about 42 s for 41 suites).** Pure suites
+and ones that build their own scratch dirs from inline fixtures:
+announce, chain, claims-board, claims-codec, design-*, idle,
+lanes, ledger, locks, loop-issue, loop-rows, motion, nudge-check,
+order, pending, plan-check, progress, promote, push-policy,
+quota, resolve, settle, state, steer, support, tick,
+triage-match, ui-walk, upgrade-plan, workflow-lint, secrets,
+secrets-sinks, plus the `-run` suites progress-run,
+secrets-run, secrets-scan-run and design-render-run. Each takes
+under 5 s, most under 1 s.
+
+**Keep, but they are slow (about 280 s for 9 suites).** They
+spawn git or scratch repos, offline: `settle-run` (about 100 s),
+`tick-run` (about 60 s), `worktree` (about 37 s),
+`push-policy-hook` (about 29 s), `upgrade-plan-run` and
+`secrets-vault` (about 16 s each), then `plot-run`,
+`ui-walk-run` and `secrets-audit` (6 to 9 s each). Run them on
+the nightly smoke or in CI, not on every local commit.
+
+**Leave out.** They read kit-only files or the live kit plan,
+and fail in an adopter:
+
+- `bootstrap` and `cadence` import `scripts/bootstrap.mjs`,
+  which the adopt prune removes.
+- `heartbeat-quota`, `heartbeat-red`, `heartbeat-motion` and
+  `heartbeat-realized` read `templates/.github/workflows/`,
+  a path only the kit has.
+- `install-hooks-run` runs the kit's own `scripts/verify.mjs`.
+- `lost` reads the guard hook at the kit's `claude/hooks/` path.
+- `refill` reads the live `plan/AUDIT.md` as its fixture, so it
+  passes or fails with your own audit file.
+- `claims` spawns git for every case (the kit's opt-in
+  `scripts-git` leg); it did not finish in 240 s on the
+  Windows laptop. Run it only where git is cheap.
+
+Cheapest start: `node --test scripts/__tests__/<suite>` for the
+pure list, and `node scripts/plan-check.mjs`,
+`node scripts/workflow-lint.mjs` and `node scripts/secrets-scan.mjs`
+in the gate as their rows above say.
 
 ## Adopt-by-need files
 

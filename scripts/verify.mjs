@@ -137,6 +137,14 @@
 //                 rose, or one that fell while the list stayed is
 //                 red (lower it with node scripts/kit-id.mjs refs
 //                 --write), so the list only moves down
+//   surface       the editable surface (spec 64, surface.json): a
+//                 commit whose subject starts refine: or lessons:
+//                 in origin/main..HEAD (HEAD alone when empty)
+//                 fails when it touches a denied or unlisted path,
+//                 a bearings section the list does not name, or
+//                 adds more characters to a file than its cap; a
+//                 briefed chunk's commit is not inspected
+//                 (scripts/surface.mjs)
 //   scripts-git   opt-in — the same scripts end to end in scratch git
 //                 repos in the temp folder (offline, but every case
 //                 spawns git, so tens of seconds), and heartbeat.yml's
@@ -456,31 +464,16 @@ const RETIRED_PLACEHOLDERS = new Map([
 ])
 const RETIRED_PLACEHOLDER_HOME = 'playbooks/upgrade.md'
 
-function legPlaceholders(files) {
-  const failures = []
-  let seen = 0
-  const tokenRe = /<[A-Z][A-Z0-9_]*(?: [A-Z][A-Z0-9_]*)*>/g
-  for (const file of files) {
-    const lines = read(file).split(/\r?\n/)
-    lines.forEach((line, i) => {
-      let m
-      while ((m = tokenRe.exec(line)) !== null) {
-        seen++
-        if (RETIRED_PLACEHOLDERS.has(m[0])) {
-          if (file.replace(/\\/g, '/') !== RETIRED_PLACEHOLDER_HOME) {
-            failures.push(
-              `${file}:${i + 1}: ${m[0]} was renamed ${RETIRED_PLACEHOLDERS.get(m[0])} — only ${RETIRED_PLACEHOLDER_HOME} may name the old one`,
-            )
-          }
-        } else if (!PLACEHOLDER_VOCABULARY.has(m[0])) {
-          failures.push(
-            `${file}:${i + 1}: unknown placeholder ${m[0]} — typo, or add it to PLACEHOLDER_VOCABULARY in scripts/verify.mjs`,
-          )
-        }
-      }
-    })
-  }
-  return { failures, note: `${seen} placeholder tokens` }
+async function legPlaceholders(files) {
+  // Read as settled: text a pending `## Add` / `## Edit` brings in counts now (scripts/placeholders.mjs).
+  const { scanSettled } = await import(pathToFileURL(path.join(ROOT, 'scripts/placeholders.mjs')).href)
+  const { failures, seen } = scanSettled(ROOT, files, {
+    vocabulary: PLACEHOLDER_VOCABULARY,
+    retired: RETIRED_PLACEHOLDERS,
+    retiredHome: RETIRED_PLACEHOLDER_HOME,
+  })
+  const suite = runSuites(['scripts/__tests__/placeholders.test.mjs'], 'checker')
+  return { failures: [...failures, ...suite.failures], note: `${seen} placeholder tokens, read as settled` }
 }
 
 // --- leg: anatomy ---------------------------------------------------------
@@ -956,6 +949,8 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/pending.test.mjs',
   'templates/scripts/__tests__/settle.test.mjs',
   'templates/scripts/__tests__/claims-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
+  'templates/scripts/__tests__/board-codec.test.mjs',
   'templates/scripts/__tests__/claims-board.test.mjs',
   'templates/scripts/__tests__/push-policy.test.mjs',
   'templates/scripts/__tests__/progress.test.mjs',
@@ -994,6 +989,7 @@ const PURE_SUITES = [
   'templates/scripts/__tests__/design-port.test.mjs',
   'templates/scripts/__tests__/support.test.mjs',
   'templates/scripts/__tests__/ui-walk.test.mjs',
+  'templates/scripts/__tests__/acceptance.test.mjs',
   'scripts/__tests__/url-path-lint.test.mjs',
   'scripts/__tests__/bare-push.test.mjs',
   'scripts/__tests__/probe-latency.test.mjs',
@@ -1007,10 +1003,12 @@ const PURE_SUITES = [
   'scripts/__tests__/release-reply.test.mjs',
   'scripts/__tests__/kit-id.test.mjs',
   'scripts/__tests__/adopt-check.test.mjs',
+  'scripts/__tests__/surface.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
   'templates/scripts/__tests__/claims.test.mjs',
+  'templates/scripts/__tests__/claims-board-write.test.mjs',
   'templates/scripts/__tests__/push-policy-hook.test.mjs',
   'templates/scripts/__tests__/install-hooks-run.test.mjs',
   'templates/scripts/__tests__/worktree.test.mjs',
@@ -1024,7 +1022,10 @@ const GIT_SUITES = [
   'templates/scripts/__tests__/heartbeat-motion.test.mjs',
   'templates/scripts/__tests__/heartbeat-realized.test.mjs',
   'templates/scripts/__tests__/ui-walk-run.test.mjs',
+  'templates/scripts/__tests__/acceptance-run.test.mjs',
   'scripts/__tests__/unreleased-run.test.mjs',
+  'scripts/__tests__/improve.test.mjs',
+  'scripts/__tests__/surface-run.test.mjs',
 ]
 
 // nexus runs these scripts on its own plan (npm run settle, npm run
@@ -1033,7 +1034,7 @@ const GIT_SUITES = [
 const DOGFOOD_TWINS = [
   'owner.mjs', 'claims.mjs', 'claims-codec.mjs', 'git/push-policy.mjs',
   'plan/pending.mjs', 'plan/settle.mjs', 'plan/settled.mjs', 'plan/config.mjs', 'plan/footguns.mjs',
-  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs',
+  'plan/progress.mjs', 'plan/order.mjs', 'plan/triage-match.mjs', 'plan/promote.mjs', 'plan/lanes.mjs', 'plan/refill.mjs', 'plan/motion.mjs', 'plan/locks.mjs', 'plan/loop-rows.mjs', 'plan/state.mjs', 'plan/support.mjs', 'plan/improve.mjs',
   'generators/issue-age.mjs', 'generators/stale-candidate.mjs', 'generators/motion.mjs', 'plan-check.mjs', 'announce.mjs', 'ledger.mjs', 'worktree.mjs',
   'upgrade-plan.mjs', 'plan/secrets-manifest.mjs', 'secrets.mjs', 'secrets-vault.mjs', 'secrets-keychain.mjs', 'secrets-sinks.mjs',
   'secrets-audit.mjs',
@@ -1042,6 +1043,7 @@ const DOGFOOD_TWINS = [
   'design/ingest.mjs',
   'design/png.mjs', 'design/compare.mjs', 'design/render.mjs', 'design/board-runtime.js',
   'design/port-map.mjs', 'design/port.workflow.js',
+  'pr/acceptance.mjs',
 ]
 // The steer hook runs in nexus's own sessions from .claude/hooks/, byte for byte the one adopters copy.
 const HOOK_TWINS = ['steer.mjs']
@@ -1133,7 +1135,58 @@ async function legWorkflows() {
   const failures = problems.map((p) => { const m = /^(.*?\.ya?ml)(:.*)$/s.exec(p); return m ? normalize(path.relative(ROOT, m[1])) + m[2] : p })
   failures.push(...marchGovernorCheck())
   failures.push(...nudgeCheck())
-  return { failures, note: `${files} workflows and actions: hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+  failures.push(...nodeActionMajorsCheck())
+  failures.push(...prFlowCheck())
+  return { failures, note: `pr-flow.yml deletes a merged loop branch; ${files} workflows and actions: Node 24 action majors, hosted runners for secrets, contexts, no outsider text in run scripts; march.yml's reason, dispatch ceiling, loop-filed marker and chain step; nudge.yml's filters and twin` }
+}
+
+// Spec 39 (A15): a merged loop PR's nexus/<run> branch is deleted.
+// Both pr-flow.yml copies carry a step gated on merged == true and a
+// nexus/ head ref that deletes the ref, and the two are twins.
+function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROOT, f))) {
+  const failures = []
+  const files = ['.github/workflows/pr-flow.yml', 'templates/.github/workflows/pr-flow.yml']
+  const texts = []
+  for (const file of files) {
+    if (!exists(file)) { failures.push(`${file}: missing (pr-flow releases claims and deletes merged loop branches)`); continue }
+    const text = readFile(file).replace(/\r\n/g, '\n')
+    texts.push(text)
+    const i = text.indexOf('Delete the merged loop branch')
+    const step = i < 0 ? '' : text.slice(i)
+    if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
+  }
+  if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
+  return failures
+}
+
+// 39.11 (A12): no workflow or composite action pins a first-party
+// action on a Node 20 major. GitHub is retiring the Node 20 runtime,
+// and every run of an old major warns that it targets it. Each entry
+// is the oldest major whose action.yml says `using: node24`
+// (checked against the action's repo); a sub-path such as
+// cache/restore counts as its action.
+const NODE24_MAJORS = {
+  checkout: 5,
+  'setup-node': 5,
+  cache: 5,
+  'upload-artifact': 6,
+  'download-artifact': 7,
+  'create-github-app-token': 3,
+}
+function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.github/actions', 'templates/.github/workflows', 'templates/.github/actions']) {
+  const failures = []
+  for (const dir of dirs) {
+    const abs = path.join(ROOT, dir)
+    if (!fs.existsSync(abs)) continue
+    for (const file of walkFiles(abs).filter((f) => /\.ya?ml$/.test(f))) {
+      const rel = normalize(path.relative(ROOT, file))
+      readFile(rel).split(/\r?\n/).forEach((line, i) => {
+        const m = /\buses:\s*actions\/([a-z-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
+        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: actions/${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
+      })
+    }
+  }
+  return failures
 }
 
 // Spec 54: the event tick. templates/.github/workflows/nudge.yml
@@ -1360,6 +1413,20 @@ function legAdoptDryrun() {
   }
 }
 
+// --- leg: surface ------------------------------------------------------------
+// Spec 64: surface.json names what a refine: or lessons: commit may edit
+// about the loop itself. The leg walks origin/main..HEAD (HEAD alone when
+// that is empty) and fails a surface-bound commit that touches a denied or
+// unlisted path or goes over a cap; a briefed chunk's commit is not inspected.
+
+async function legSurface() {
+  const { loadSurface, checkRange } = await import(pathToFileURL(path.join(ROOT, 'scripts/surface.mjs')).href)
+  const { surface, problems } = loadSurface(ROOT)
+  if (!surface) return { failures: problems, note: 'see failures' }
+  const res = checkRange(ROOT, surface)
+  return { failures: res.failures, note: `${res.checked} commit(s) walked, ${res.bound} refine:/lessons: checked against surface.json` }
+}
+
 // --- leg: design -------------------------------------------------------------
 // Opt-in, like adopt-dryrun: the handoff and its port map change only
 // with a delivery or a port, so the default pass skips the hashing.
@@ -1394,6 +1461,7 @@ const LEGS = {
   upgrade: () => legUpgrade(),
   'state-size': () => legStateSize(),
   kit: () => legKit(),
+  surface: () => legSurface(),
   'scripts-git': () => runSuites(GIT_SUITES, 'end-to-end'),
   'adopt-dryrun': () => legAdoptDryrun(),
   design: () => legDesign(),

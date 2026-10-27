@@ -11,7 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { parseSpec } from '../plan-check.mjs';
-import { agedScore, asapCap, bearingsLevel, capacity, closingRefs, escalateDays, ghAllIssues, gitCommit, heldPackages, issueBorn, keepGoing, loopFiled, main, placed, pulseLine, refsIssue, route, slaDue, slaHours, supportLevel, supportPulse, tellPlan, trust, userBonus, userRows } from '../plan/support.mjs';
+import { agedScore, asapCap, bearingsLevel, capacity, closingRefs, escalateDays, ghAllIssues, ghIssue, gitCommit, heldPackages, issueBorn, keepGoing, loopFiled, main, placed, pulseLine, refsIssue, route, slaDue, slaHours, supportLevel, supportPulse, tellPlan, trust, userBonus, userRows } from '../plan/support.mjs';
 
 const readme = (asap) => ['## Lanes', '', '**Asap** (built before the table):', '', ...asap, '', '**Held** (waits):', '', '- (none)', '', '## Specs', ''].join('\n');
 const spec = (num, chunks) => parseSpec(`${num}-x.md`, ['## Acceptance', '- **A1** x', '## Chunks', 'Measure: 1 open · 0 closed · next A2', ...chunks].join('\n'));
@@ -561,5 +561,58 @@ describe('the command', () => {
         console.error = err;
       }
     }
+  });
+});
+
+describe('ghIssue reads the REST reply (A1)', () => {
+  it('takes author_association and label names from gh api', () => {
+    const calls = [];
+    const run = (cmd, args) => {
+      calls.push([cmd, ...args]);
+      return { status: 0, stdout: JSON.stringify({ number: 7, author_association: 'FIRST_TIME_CONTRIBUTOR', labels: [{ name: 'bug' }, { name: 'needs-user' }] }) };
+    };
+    assert.deepEqual(ghIssue(7, { run }), { association: 'FIRST_TIME_CONTRIBUTOR', labels: ['bug', 'needs-user'], repo: '', isPr: false });
+    assert.deepEqual(calls, [['gh', 'api', 'repos/{owner}/{repo}/issues/7']]);
+  });
+
+  it('returns null when gh fails or answers junk', () => {
+    assert.equal(ghIssue(7, { run: () => ({ status: null, stdout: '' }) }), null);
+    assert.equal(ghIssue(7, { run: () => ({ status: 1, stdout: '' }) }), null);
+    assert.equal(ghIssue(7, { run: () => ({ status: 0, stdout: 'not json' }) }), null);
+  });
+});
+
+describe('route shows the repo it read and refuses pull requests', () => {
+  const reply = (extra) => ({ status: 0, stdout: JSON.stringify({ author_association: 'OWNER', labels: [], ...extra }) });
+  const root = () => {
+    const r = fs.mkdtempSync(path.join(os.tmpdir(), 'support-'));
+    fs.mkdirSync(path.join(r, 'plan'));
+    fs.writeFileSync(path.join(r, 'plan', 'bearings.md'), 'Support: fix-all\n');
+    fs.writeFileSync(path.join(r, 'plan', 'README.md'), '# plan\n');
+    return r;
+  };
+  it('parses the repo from repository_url or html_url', () => {
+    assert.equal(ghIssue(3, { run: () => reply({ repository_url: 'https://api.github.com/repos/no-trbl-2-u/Nexus-Smash' }) }).repo, 'no-trbl-2-u/Nexus-Smash');
+    assert.equal(ghIssue(3, { run: () => reply({ html_url: 'https://github.com/another-owner/another-repo/issues/3' }) }).repo, 'another-owner/another-repo');
+  });
+  it('prints another repo in the decision line', async () => {
+    const out = [];
+    const gh = (n) => ghIssue(n, { run: () => reply({ html_url: 'https://github.com/another-owner/another-repo/issues/3' }) });
+    assert.equal(await main(['route', '3', '--kind', 'bug'], { root: root(), env: {}, log: (l) => out.push(l), gh }), 0);
+    assert.match(out[0], /^bug #3 \(another-owner\/another-repo\) · /);
+  });
+  it('refuses a pull request without routing it', async () => {
+    const out = [];
+    const errs = [];
+    const err = console.error;
+    console.error = (m) => errs.push(m);
+    try {
+      const gh = (n) => ghIssue(n, { run: () => reply({ pull_request: { url: 'x' } }) });
+      assert.equal(await main(['route', '4', '--kind', 'bug'], { root: root(), env: {}, log: (l) => out.push(l), gh }), 64);
+    } finally {
+      console.error = err;
+    }
+    assert.deepEqual(out, []);
+    assert.match(errs[0], /#4 is a pull request/);
   });
 });

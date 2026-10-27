@@ -219,7 +219,8 @@ export function packageManager(has, v1Text = '') {
 
 /** The kit's placeholders the merged files carry, filled. `<ISO>` (a comment's date) stays. */
 export function fill(text, { project, pm, branch }) {
-  return text.replace(/<PROJECT>/g, project).replace(/<PACKAGE_MANAGER>/g, pm).replace(/<DEFAULT_BRANCH>/g, branch);
+  // Function replacers: a `$&` or `$$` in a name is text, not a replacement pattern.
+  return text.replace(/<PROJECT>/g, () => project).replace(/<PACKAGE_MANAGER>/g, () => pm).replace(/<DEFAULT_BRANCH>/g, () => branch);
 }
 
 /** Splice: replace lines[a, b) with `add` (in place), returning the length change. */

@@ -498,6 +498,7 @@ nexus/
 ├── package.json                       # the kit's own verify gate wiring
 ├── nexus.secrets.json                 # nexus's own secrets by name, never a value (customization/secrets.md)
 ├── kit.json                           # this fork's identity: repo, upstream, package, docs (scripts/kit-id.mjs prints a field)
+├── surface.json                       # the editable surface (spec 64): what a refine: or lessons: commit may touch, and the caps; the surface leg enforces it
 ├── assets/                            # generated SVG diagrams (scripts/diagrams.mjs); hand edits fail the gate
 │   ├── gifs/fleet-to-tug.gif          # the GUI in motion, recorded from a demo scenario (npm run record in packages/cli)
 │   └── gifs/fleet-to-tug.png          # its still poster, for readers who ask for less motion
@@ -507,6 +508,8 @@ nexus/
 │   ├── __tests__/diagrams.test.mjs    # the generator's own suite (run by the diagrams leg)
 │   ├── gifs.mjs                       # every GIF the README shows: exists, 5-8 s, 3 MB at most, alt text, its poster (the gifs leg)
 │   ├── __tests__/gifs.test.mjs        # the checker's own suite (run by the gifs leg)
+│   ├── placeholders.mjs               # the placeholders leg's scan: every token in the settled view (pending Adds and Edits applied) is in the vocabulary
+│   ├── __tests__/placeholders.test.mjs # the scan's own suite (run by the placeholders leg)
 │   ├── cadence-twins.mjs              # the Cadence, Quota gate and Chain steps agree across nexus, templates/ and the CLI kit, and no shipped cron fires at :00 (the cadence-twins leg)
 │   ├── __tests__/cadence-twins.test.mjs # the checker's own suite (run by the cadence-twins leg)
 │   ├── cloud/probe-latency.mjs        # owner-run: dispatch p50/p90 of the no-model probe.yml, march's schedule lag, the hook probe line
@@ -530,6 +533,9 @@ nexus/
 │   ├── kit-id.mjs                     # reads kit.json; refs --write lowers kit-refs.json, the kit leg's ratchet on text naming upstream
 │   ├── kit-refs.json                  # files that still name upstream, at their counts; computed, only moves down
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
+│   ├── surface.mjs                        # the surface leg's checker: refine:/lessons: commits in origin/main..HEAD against surface.json
+│   ├── __tests__/surface.test.mjs         # its pure suite (scripts leg)
+│   ├── __tests__/surface-run.test.mjs     # its scratch-repo suite (scripts-git)
 │   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
 │   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)
 │   ├── plan/ui-rows.mjs               # /iterate's H rows: their shape, at most 3 Pending, and the magic guard on next
@@ -541,6 +547,7 @@ nexus/
 │   ├── __tests__/iterate-loop.test.mjs # nexus's own I rows clean, plus dimension I in the skills and bearings (scripts leg)
 │   ├── plan/state.mjs                 # the state diet: queue headers and size (the state-size leg); compact old Done rows (twin)
 │   ├── plan/support.mjs               # the Support level: triage's route to /bug, the asap_cap count, march's keep-going, the Step 1.5 SLA, aged user rows, a landed fix told and closed, the digest's Support line and needs-user escalation (twin)
+│   ├── plan/improve.mjs               # the improvement dial: `Improve:` in bearings sets every expansion knob's default, an override line wins per knob, a NEXUS_* variable that disagrees is warned about (twin)
 │   ├── generators/issue-age.mjs       # an open issue past the SLA becomes one AUDIT HIGH row (twin)
 │   ├── generators/stale-candidate.mjs # an aged candidate no promote rule reaches becomes one needs-user ask (twin)
 │   ├── generators/motion.mjs          # a stalled motion pulse becomes one AUDIT HIGH row about the loop (twin)
@@ -630,7 +637,7 @@ nexus/
 ├── plan/                              # nexus's OWN state files (specs + chunks, pending, archive, queues)
 ├── identity/                          # nexus's OWN identity layer: footguns.md (the ladder) + decisions/
 ├── .claude/                           # nexus's OWN commands + settings.json + guard and steer hooks
-├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + probe.yml (temporary: spec 55.6's latency probe)
+├── .github/                           # nexus's OWN cloud loop (march.yml + nudge.yml + pr-flow.yml + CLOUD_LOOP.md + ISSUE_TEMPLATE/) + publish.yml + cli-ci.yml + scripts-ci.yml + surface-ci.yml (spec 64: the surface leg on every PR, full depth) + probe.yml (temporary: spec 55.6's latency probe)
 ├── packages/
 │   └── cli/                           # the GUI (kit.json package) for Claude Code (React+Vite; design/handoff/ is its UI source of truth; publish.yml ships it, cli-ci.yml tests it)
 └── templates/
@@ -745,6 +752,7 @@ nexus/
     │   ├── plan/loop-rows.mjs         # /iterate dimension I: loop-config rows turn one lever, ease <= 6, one ships per 7 days, YAML asked
     │   ├── plan/state.mjs             # the state diet: queue headers <= 20 lines, <= 256 KB; delete Done rows past 30 days
     │   ├── plan/support.mjs           # Support level (NEXUS_SUPPORT over bearings): route a collaborator's bug to /bug, asap_cap, march keeps going, Step 1.5 plots a queued issue past sla_hours, user rows age +1/12h, tell closes a landed fix's issue, digest prints the Support line and escalates needs-user past escalate_days
+    │   ├── plan/improve.mjs           # the improvement dial resolver: Improve: off|gentle|steady|bold sets each expansion knob's default; prints every knob with its source (dial|override); warns when NEXUS_SUPPORT or NEXUS_CADENCE disagrees
     │   ├── generators/issue-age.mjs   # generator: an open issue past sla_hours -> one AUDIT HIGH row (gh read only)
     │   ├── generators/stale-candidate.mjs # generator: an aged candidate no promote rule reaches -> one needs-user ask
     │   ├── generators/motion.mjs      # generator: a stalled motion pulse -> one AUDIT HIGH row a week
@@ -772,6 +780,7 @@ nexus/
     │   ├── cloud/cadence.mjs          # the cadence presets (calm, steady, eager, sprint, off): NEXUS_CADENCE into ceiling, chain max, idle backoff, heartbeat hours; apply writes the cron; realized counts delivered slots
     │   ├── cloud/nudge-check.mjs      # nudge.yml's check: who starts a tick, the queue, NEXUS_EVENT_MAX; the one dispatch
     │   ├── pr/resolve.mjs             # pr-resolve's resolver: merge main into conflicted PRs
+    │   ├── pr/acceptance.mjs          # the judge's logic: proof lines in a PR body, each run; the parent replay of added tests (guard-test: excuses one)
     │   ├── design/ingest.mjs          # /design ingest: an export folder -> design/handoff/<date>/ + manifest.json (sha256 per file) + README; check, rehash
     │   ├── design/render.mjs          # a handoff's boards as PNGs at their size, night or dawn, via the installed Chrome (+ board-runtime.js)
     │   ├── design/compare.mjs         # a board PNG against the app's: the percent that differs, a diff PNG (+ png.mjs)
@@ -780,11 +789,14 @@ nexus/
     │   ├── upgrade-plan.mjs           # v1 to v2: shipped phases -> archive lines, pending -> spec stubs, blocked -> Held; dry run by default
     │   ├── ui-walk.mjs                # the site's UI: routes in Chrome at two viewports -> walk.json + PNGs; playwright-core or zero-dep CDP; anonymous; UI: none walks nothing
     │   ├── __tests__/loop-issue.test.mjs # unit tests, node:test, no devDeps
+    │   ├── __tests__/acceptance.test.mjs # the judge's logic: proof lines, missing or red proofs, the parent replay and guard-test; io faked
+    │   ├── __tests__/acceptance-run.test.mjs # the same on a scratch git repo: the CLI, the spec diff, the parent replay in a worktree (scripts-git)
     │   ├── __tests__/plan-check.test.mjs # unit tests for plan-check.mjs
     │   ├── __tests__/pending.test.mjs # pending files, config, settled view
     │   ├── __tests__/settle.test.mjs  # settle's pure functions
     │   ├── __tests__/settle-run.test.mjs # settle end to end in a scratch repo (offline)
     │   ├── __tests__/claims-codec.test.mjs # the claims rules
+    │   ├── __tests__/board-codec.test.mjs # the board's rules: dedup (x2), PATCH replacement, FAIL invalidation, the caps
     │   ├── __tests__/claims-board.test.mjs # the board's table and issue (fake gh)
     │   ├── __tests__/push-policy.test.mjs # the push policy, pure
     │   ├── __tests__/install-hooks-run.test.mjs # installed hooks unset GIT_DIR: a gate's scratch repo never writes the real one
@@ -837,7 +849,8 @@ nexus/
     │   ├── __tests__/bootstrap.test.mjs # bootstrap's cloud-loop plan, pure
     │   ├── __tests__/worktree.test.mjs # worktree close and list in scratch repos (offline)
     │   ├── __tests__/push-policy-hook.test.mjs # the pre-push hook end to end (offline)
-    │   └── __tests__/claims.test.mjs  # claims over git in scratch repos (offline)
+    │   ├── __tests__/claims.test.mjs  # claims over git in scratch repos (offline)
+    │   └── __tests__/claims-board-write.test.mjs # the board over git: (x2), replacement, invalidation, caps, a lost race retried, nothing dropped (offline)
     ├── env/
     │   ├── env.example                # NETLIFY_AUTH_TOKEN, GH_TOKEN, NOTIFY_*, etc.
     │   └── nexus.secrets.json         # → repo root: secrets by name, never a value (customization/secrets.md)

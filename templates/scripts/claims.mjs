@@ -7,6 +7,8 @@
 // is checked out: the commit is built with plumbing (hash-object, mktree, commit-tree), so any checkout or worktree can
 // claim. A lost race fetches again and redoes the change on the new tip, up to 8 tries. An unreadable claims.json
 // throws: it is never read as empty, since the next write would wipe everyone's claims.
+// board.json sits beside claims.json on the same branch and is written by the same compare-and-swap (postNote,
+// updateBoard; the rules are the codec's, spec 62): a note lost to a race is redone on the new tip, never dropped.
 //
 // The owner's checkout (scripts/owner.mjs: an untracked `.owner`, owner mode on) claims as `privileged_agent_session`,
 // may claim many chunks at once and lands on main; every other checkout is a contributor's: it claims under its git
@@ -43,7 +45,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { pendingArchiveLines, pendingAtRef } from './plan/pending.mjs';
 import { isOwner, primaryRoot } from './owner.mjs';
-import { BRANCH, CHUNK_ID as ID, FILE, PRIVILEGED, STAR, TTL_MS, claimInto, decide, format, idsProblem, mine, parse, pushRefusal, readMap, releaseFrom, renewIn, serialize, state } from './claims-codec.mjs';
+import { BOARD_FILE, BRANCH, backoffMs, CHUNK_ID as ID, FILE, PRIVILEGED, STAR, TTL_MS, addNote, claimInto, decide, emptyBoard, format, idsProblem, mine, noteProblem, parse, parseBoard, pushRefusal, readMap, releaseFrom, renewIn, serialize, serializeBoard, state } from './claims-codec.mjs';
 
 export { BRANCH, FILE, PRIVILEGED, TTL_MS, decide, format, mine, parse, state };
 export const TRIES = 8;
@@ -177,8 +179,12 @@ export function ghLogin(env = process.env) {
 
 const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-/** Fetch the claims tip. Returns { tip, map } (tip null when the branch doesn't exist yet). */
-export function fetchClaims(cwd, remote = remoteOf()) {
+/**
+ * Fetch the claims branch tip and read one of its files: { tip, text }. `tip` is null when the branch doesn't exist yet;
+ * `text` is null when the branch has no such file yet (the board's first note on a branch of claims, or the reverse).
+ * A file that is there and can't be read throws: it is never read as empty, since the next write would wipe it.
+ */
+function fetchFile(cwd, file, remote) {
   const ref = `refs/remotes/${remote}/${BRANCH}`;
   // Several worktrees of one machine share this ref: a fetch beside another can't lock it, so it waits and tries again.
   let res;
@@ -188,19 +194,30 @@ export function fetchClaims(cwd, remote = remoteOf()) {
     pause(250 * (i + 1));
   }
   if (res.status !== 0) {
-    if (/couldn't find remote ref/i.test(res.stderr)) return { tip: null, map: {} };
+    if (/couldn't find remote ref/i.test(res.stderr)) return { tip: null, text: null };
     throw new Error(`git fetch ${remote} ${BRANCH}: ${res.stderr.trim()}`);
   }
   const tip = git(['rev-parse', ref], { cwd }).trim();
-  // An unreadable file is never read as empty: the next write would wipe everyone's claims.
-  let text;
+  // Only a branch that never had the file reads as empty; a file that is there and unreadable throws.
+  if (!git(['ls-tree', '--name-only', tip, '--', file], { cwd }).trim()) return { tip, text: null };
   try {
-    text = git(['show', `${tip}:${FILE}`], { cwd });
+    return { tip, text: git(['show', `${tip}:${file}`], { cwd }) };
   } catch (e) {
     const why = e instanceof Error ? e.message.split('\n')[0] : String(e);
-    throw new Error(`claims: ${FILE} at ${tip.slice(0, 8)} can't be read (${why}); fix the branch, then retry.`);
+    throw new Error(`claims: ${file} at ${tip.slice(0, 8)} can't be read (${why}); fix the branch, then retry.`);
   }
-  return { tip, map: readMap(text, tip.slice(0, 8)) };
+}
+
+/** Fetch the claims tip. Returns { tip, map } (tip null when the branch doesn't exist yet). */
+export function fetchClaims(cwd, remote = remoteOf()) {
+  const { tip, text } = fetchFile(cwd, FILE, remote);
+  return { tip, map: text === null ? {} : readMap(text, tip.slice(0, 8)) };
+}
+
+/** Fetch the claims tip and its board. Returns { tip, board } (tip null before the branch exists; an empty board before the first note). */
+export function fetchBoard(cwd, remote = remoteOf()) {
+  const { tip, text } = fetchFile(cwd, BOARD_FILE, remote);
+  return { tip, board: text === null ? emptyBoard() : parseBoard(text, tip.slice(0, 8)) };
 }
 
 function writeObject(cwd, text) {
@@ -245,16 +262,60 @@ export function redrawBoard({ env = process.env, run = spawnSync, log = console.
  * (protected claims) as "claims are protected: ask the owner", anything else (a hook, access) as it came.
  */
 export function pushClaims(cwd, parent, map, message, remote = remoteOf()) {
-  const blob = writeObject(cwd, serialize(map));
+  const took = pushFile(cwd, parent, FILE, serialize(map), message, remote);
+  if (took) pushes++;
+  return took;
+}
+
+/** pushClaims for any one file of the branch: the other files (claims.json beside board.json) ride along from `parent`. */
+function pushFile(cwd, parent, file, text, message, remote) {
+  const blob = writeObject(cwd, text);
   // --missing: a sparse or partial clone may not hold the parent's other files locally.
-  const tree = git(['mktree', '--missing'], { cwd, input: treeWith(cwd, parent, { [FILE]: blob }) }).trim();
+  const tree = git(['mktree', '--missing'], { cwd, input: treeWith(cwd, parent, { [file]: blob }) }).trim();
   const commit = git(['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', message], { cwd }).trim();
   const res = spawnSync('git', ['push', '-q', remote, `${commit}:refs/heads/${BRANCH}`], { cwd, encoding: 'utf8' });
-  if (res.status === 0) return (pushes++, true);
+  if (res.status === 0) return true;
   const why = pushRefusal(res.stderr);
   if (why === 'race') return false;
   if (why === 'protected') throw new Error(`claims are protected: ask the owner (the host refused a write to ${BRANCH}: ${res.stderr.trim()})`);
   throw new Error(`claims: origin refused the push: ${res.stderr.trim()}`);
+}
+
+/**
+ * The board's twin of `update`: read board.json, change it, push the same compare-and-swap; a lost race fetches again
+ * and redoes the change on the new tip, so a note is applied on top of every entry another writer landed and never
+ * drops one (up to `tries`). `change(board)` returns { board, message } or null for nothing to write. A board write
+ * does not ask for a claims-board redraw: the board shows claims, and no claim moved.
+ */
+export function updateBoard(cwd, change, { remote = remoteOf(), tries = TRIES } = {}) {
+  for (let i = 0; i < tries; i++) {
+    const { tip, board } = fetchBoard(cwd, remote);
+    const out = change(board);
+    if (!out) return { written: false, tries: i + 1 };
+    if (pushFile(cwd, tip, BOARD_FILE, serializeBoard(out.board), out.message, remote)) return { written: true, tries: i + 1, ...out };
+    pause(backoffMs(i));
+  }
+  throw new Error(`claims: ${remote}'s ${BRANCH} kept moving; ${tries} tries lost the race. Run it again.`);
+}
+
+/**
+ * Write one note to the board: { type, chunk, by, session, text, detail? }. Refused (thrown) before any fetch when the
+ * note breaks a cap or a rule. Returns { entry, outcome, tries }: outcome is added, duplicate (bumped to (xN)) or
+ * replaced (a PATCH over its author's last for the chunk).
+ */
+export function postNote(cwd, note, { remote, now = () => Date.now(), tries } = {}) {
+  const problem = noteProblem(note);
+  if (problem) throw new Error(`board: ${problem}`);
+  let result;
+  const res = updateBoard(
+    cwd,
+    (board) => {
+      result = addNote(board, note, now());
+      return { board: result.board, message: `board ${result.outcome} ${result.entry.id} ${note.type} ${note.chunk} · ${note.by}` };
+    },
+    { remote, tries },
+  );
+  return { entry: result.entry, outcome: result.outcome, tries: res.tries };
 }
 
 /**
@@ -267,7 +328,7 @@ export function update(cwd, change, { remote = remoteOf(), tries = TRIES } = {})
     const out = change({ ...map });
     if (!out) return { written: false };
     if (pushClaims(cwd, tip, out.map, out.message, remote)) return { written: true, ...out };
-    pause(100 + Math.floor(Math.random() * 400));
+    pause(backoffMs(i));
   }
   throw new Error(`claims: ${remote}'s ${BRANCH} kept moving; ${tries} tries lost the race. Run it again.`);
 }

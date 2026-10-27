@@ -22,6 +22,9 @@ test('the upgrade bundle is the computed list, byte for byte, with files.json na
   assert.deepEqual(files, upgradeFiles(NEXUS).files);
   const manifest = JSON.parse(fs.readFileSync(path.join(out, 'files.json'), 'utf8'));
   assert.deepEqual(manifest.files, files);
+  // The kit commit it was built from: a v2 repo's sync moves its lock's ref: and version: there (A11).
+  assert.match(manifest.kit.ref, /^[0-9a-f]{40}$/);
+  assert.match(manifest.kit.version, /^\d+\.\d+\.\d+(\+[0-9a-f]{7})?$/);
   // The seeds the upgrade merges or flips (the v2 roadmap, the lock) ride along, byte for byte.
   assert.deepEqual(manifest.seeds, [...SEEDS]);
   for (const s of SEEDS) assert.equal(fs.readFileSync(path.join(out, ...s.split('/')), 'utf8'), fs.readFileSync(path.join(NEXUS, 'templates', ...s.split('/')), 'utf8'), s);

@@ -32,7 +32,7 @@ runs:
       uses: pnpm/action-setup@v4
 
     - name: Set up Node 22
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: 22
         cache: ${{ steps.lockfile.outputs.present == 'true' && '<PACKAGE_MANAGER>' || '' }}
@@ -46,7 +46,7 @@ runs:
     # Drop these two steps for projects without e2e.
     - name: Cache Playwright browsers
       if: steps.lockfile.outputs.present == 'true'
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ~/.cache/ms-playwright
         key: playwright-${{ runner.os }}-${{ hashFiles('apps/e2e/package.json', 'pnpm-lock.yaml') }}

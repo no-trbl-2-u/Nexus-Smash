@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // nexus [--repo <dir>] [--port <n>] [--no-open]
 // nexus run "<prompt>" [--cwd <dir>]   one turn headless, JSON out
-// nexus upgrade [--repo <dir>] [--json]   a v1 repo to v2, dry run (server/upgrade.mjs)
+// nexus upgrade [--repo <dir>] [--json] [--write]   a v1 repo to v2 (dry run), a v2 repo synced to the latest kit (server/upgrade.mjs)
 // nexus --demo <scenario> [--speed <n>] [--loop]   fixtures and a beat script, no repo
 // (nexus is this bin: shared/kit.mjs launchLine() says how this copy starts, LAUNCH how a clone does.)
 //
@@ -61,8 +61,9 @@ if (flag('--help') || flag('-h')) {
                         way (every session parked), then start:
                         how a newer version takes over
   nexus run "<prompt>"  one turn headless, JSON out (run --help)
-  nexus upgrade         a nexus v1 repo to v2: a dry run from a
-                        fresh fetch of origin (upgrade --help)
+  nexus upgrade         a nexus v1 repo to v2, or a v2 repo synced
+                        to the latest kit: a dry run from a fresh
+                        fetch of origin (upgrade --help)
   nexus --demo <name>   a scripted demo: fixtures and a timed beat
                         script, no repo, no Claude, no network, no
                         writes (--demo list names them; --speed <n>
