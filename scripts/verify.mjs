@@ -1147,8 +1147,13 @@ function judgeCheck(readFile = read, exists = (f) => fs.existsSync(path.join(ROO
   const code = readFile(file).replace(/\r\n/g, '\n').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
   const failures = []
   if (/\bpull_request_target\b/.test(code)) failures.push(`${file}: uses pull_request_target (the judge runs the PR's code: pull_request only)`)
-  if (!/^on:\s*\n\s+pull_request:/m.test(code)) failures.push(`${file}: does not trigger on pull_request`)
-  if (/\bsecrets\.|\bgithub\.token\b|^\s*secrets:\s*inherit\b/m.test(code)) failures.push(`${file}: references a secret or the token (no repository secret may reach the judge)`)
+  const on = /^on:[ \t]*([^\n#]*)\n?((?:[ \t]+[^\n]*\n|[ \t]*\n)*)/m.exec(code + '\n')
+  const inline = on ? on[1].trim() : ''
+  const triggers = !on ? [] : inline ? inline.replace(/^\[|\]$/g, '').split(',').map((t) => t.trim()) : [...on[2].matchAll(/^([ \t]+)([\w-]+):/gm)].filter((m, _, all) => m[1].length === Math.min(...all.map((x) => x[1].length))).map((m) => m[2])
+  if (triggers.length !== 1 || triggers[0] !== 'pull_request') failures.push(`${file}: on: must be exactly pull_request (found ${triggers.join(', ') || 'nothing'})`)
+  // Every expression in the raw text, comments and run blocks included: the runner expands one wherever it sits.
+  const exprs = [...readFile(file).matchAll(/\$\{\{([\s\S]*?)\}\}/g)].map((m) => m[1])
+  if (exprs.some((e) => /\bsecrets\b|github\s*(\.|\[)\s*['"]?token|toJSON\(\s*github\b/i.test(e)) || /\bsecrets\s*:/.test(code)) failures.push(`${file}: references a secret or the token (no repository secret may reach the judge)`)
   if (!/^permissions:\s*\n\s+contents:\s*read\s*$/m.test(code) || /:\s*write\b/.test(code)) failures.push(`${file}: permissions must be exactly contents: read`)
   if (!/persist-credentials:\s*false/.test(code)) failures.push(`${file}: checkout keeps the token in the clone (persist-credentials: false)`)
   if (!/scripts\/pr\/acceptance\.mjs/.test(code)) failures.push(`${file}: does not run scripts/pr/acceptance.mjs`)
