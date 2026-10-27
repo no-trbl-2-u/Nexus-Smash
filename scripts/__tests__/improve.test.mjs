@@ -30,7 +30,8 @@ const SPEC = {
 
 // Registry rows the upgrade writes that the dial does not govern: the cadence step's own numbers (the NEXUS_CADENCE
 // preset sets them). A new write:true knob lands here or in TABLE, or the test fails.
-const UNGOVERNED = new Set(['NEXUS_CHAIN_MAX', 'NEXUS_IDLE_BACKOFF', 'NEXUS_QUOTA_MAX']);
+// `UI` is the browser-walk target and `Improve` is the dial itself: neither is a dial knob (the dial governs `UI cadence`).
+const UNGOVERNED = new Set(['NEXUS_CHAIN_MAX', 'NEXUS_IDLE_BACKOFF', 'NEXUS_QUOTA_MAX', 'UI', 'Improve']);
 
 describe('the dial', () => {
   it('reads each position, case-insensitively, in any bearings line shape', () => {
@@ -83,8 +84,8 @@ describe('registry coverage (spec 58)', () => {
     for (const t of TABLE.filter((x) => x.registry)) {
       const row = rows.get(t.registry);
       assert.ok(row, `${t.knob}: no registry row ${t.registry}`);
-      // ui holds the dial's cadence words (the UI: line itself is the walk target); cadence is a preset name.
-      if (row.accepts && !['ui', 'cadence'].includes(t.knob)) {
+      // cadence is a preset name; ui is the audit cadence (UI cadence:), the UI: line being the walk target.
+      if (row.accepts && t.knob !== 'cadence') {
         for (const p of POSITIONS) assert.ok(row.accepts.includes(t.values[p]), `${t.knob} ${p}: ${t.values[p]} not accepted by ${t.registry}`);
       }
     }
@@ -111,8 +112,8 @@ describe('overrides', () => {
   });
   it('reads each override line', () => {
     const names = ['support', 'stall_action', 'loop', 'research', 'ui'];
-    const r = resolve(bearings('Improve: off', 'Support: fix-small', 'stall_action: promote', 'loop: on', 'Research: weekly', 'UI: url'));
-    assert.deepEqual(names.map((k) => get(r, k).value), ['fix-small', 'promote', 'on', 'weekly', 'url']);
+    const r = resolve(bearings('Improve: off', 'Support: fix-small', 'stall_action: promote', 'loop: on', 'Research: weekly', 'UI cadence: both'));
+    assert.deepEqual(names.map((k) => get(r, k).value), ['fix-small', 'promote', 'on', 'weekly', 'both']);
     assert.ok(names.every((k) => get(r, k).source === 'override'));
   });
   it('a listed generator overrides; the upgrade-written (none) does not', () => {
@@ -144,9 +145,24 @@ describe('variable and dial', () => {
   it('compares against the override, not the dial, when the knob has its own line', () => {
     assert.deepEqual(resolve(bearings('Improve: bold', 'Support: fix-small'), { NEXUS_SUPPORT: 'fix-small' }).warnings, []);
   });
-  it('never changes the printed value: the variable is a warning, not a source', () => {
+  it('the variable wins and prints as source var, with the warning', () => {
     const r = resolve(bearings('Improve: steady'), { NEXUS_SUPPORT: 'off' });
+    assert.deepEqual([get(r, 'support').value, get(r, 'support').source, get(r, 'support').dial], ['off', 'var', 'fix-small']);
+    assert.match(r.warnings[0], /the variable wins in cloud/);
+    const o = resolve(bearings('Improve: steady', 'Support: fix-all'), { NEXUS_SUPPORT: 'off' });
+    assert.deepEqual([get(o, 'support').value, get(o, 'support').source], ['off', 'var']);
+  });
+  it('a variable that is not a level is ignored with a warning', () => {
+    const r = resolve(bearings('Improve: steady'), { NEXUS_SUPPORT: 'max', NEXUS_CADENCE: 'sprint' });
     assert.deepEqual([get(r, 'support').value, get(r, 'support').source], ['fix-small', 'dial']);
+    assert.match(r.warnings[0], /NEXUS_SUPPORT=max is not one of/);
+    assert.deepEqual([get(r, 'cadence').value, get(r, 'cadence').source], ['sprint', 'var']);
+  });
+  it('UI: is the walk target and not the cadence: only UI cadence overrides the dial', () => {
+    const r = resolve(bearings('Improve: bold', 'UI: url'));
+    assert.deepEqual([get(r, 'ui').value, get(r, 'ui').source], ['iterate', 'dial']);
+    assert.equal(get(resolve(bearings('Improve: bold', 'UI cadence: critique')), 'ui').value, 'critique');
+    assert.match(resolve(bearings('UI cadence: dev')).warnings[0], /UI cadence: dev/);
   });
 });
 
@@ -166,7 +182,7 @@ describe('the printed form', () => {
     const err = [];
     assert.equal(main(['--root', root], { env: { NEXUS_SUPPORT: 'off' }, log: (s) => out.push(s), err: (s) => err.push(s) }), 0);
     assert.equal(out[0], 'improve bold');
-    assert.ok(out.includes('support fix-all (dial)'));
+    assert.ok(out.includes('support off (var)'));
     assert.match(err[0], /^warn: NEXUS_SUPPORT=off/);
     const j = [];
     main(['--root', root, '--json'], { env: {}, log: (s) => j.push(s), err: () => {} });
@@ -175,6 +191,43 @@ describe('the printed form', () => {
     main(['--root', path.join(root, 'nowhere')], { env: {}, log: (s) => none.push(s), err: () => {} });
     assert.equal(none[0], 'improve gentle (absent: gentle)');
     fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe('--get (the cadence step falls back to the dial)', () => {
+  const run = (text, argv, env = {}) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-improve-get-'));
+    fs.mkdirSync(path.join(root, 'plan'));
+    if (text != null) fs.writeFileSync(path.join(root, 'plan', 'bearings.md'), text);
+    const out = [];
+    const err = [];
+    const code = main(['--root', root, ...argv], { env, log: (s) => out.push(s), err: (s) => err.push(s) });
+    fs.rmSync(root, { recursive: true, force: true });
+    return { code, out, err };
+  };
+  it('prints the bare value; --if-set prints nothing for an absent dial and the value once it is set', () => {
+    assert.deepEqual(run(bearings('Improve: bold'), ['--get', 'cadence']).out, ['eager']);
+    assert.deepEqual(run(bearings(), ['--get', 'cadence']).out, ['steady']);
+    assert.deepEqual(run(bearings(), ['--get', 'cadence', '--if-set']).out, []);
+    // gentle is today's behaviour: the workflow literals stand, so the Cadence step is passed nothing.
+    const passed = (text, env = {}) => (env.NEXUS_CADENCE || run(text, ['--get', 'cadence', '--if-set'], env).out[0] || '');
+    assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence', '--if-set']).out, []);
+    assert.equal(passed(bearings('Improve: gentle')), '');
+    assert.equal(passed(bearings('Improve: off')), 'calm');
+    assert.equal(passed(bearings('Improve: steady')), 'steady');
+    assert.equal(passed(bearings('Improve: bold')), 'eager');
+    assert.equal(passed(bearings('Improve: gentle'), { NEXUS_CADENCE: 'sprint' }), 'sprint');
+    assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence']).out, ['steady']);
+    assert.deepEqual(run(bearings('Support: fix-all'), ['--get', 'support', '--if-set']).out, ['fix-all']);
+  });
+  it('--line is the one-line digest form: the dial, then each knob not at its dial value', () => {
+    assert.deepEqual(run(bearings('Improve: bold', 'Promote: owner'), ['--line'], { NEXUS_CADENCE: 'calm' }).out, ['improve bold; promote owner (override); cadence calm (var)']);
+    assert.deepEqual(run(bearings(), ['--line']).out, ['improve gentle (absent: gentle)']);
+  });
+  it('an unknown knob exits 2', () => {
+    const r = run(bearings(), ['--get', 'nope']);
+    assert.equal(r.code, 2);
+    assert.match(r.err[0], /unknown knob nope/);
   });
 });
 
@@ -223,4 +276,48 @@ describe('review findings (3 to 8b)', () => {
     assert.deepEqual([get(r, 'promote').value, get(r, 'promote').source], ['autonomous', 'override']);
     assert.deepEqual(r.warnings, []);
   });
+});
+
+// A2 (spec 59.2): the skills that read expansion knobs read them through the resolver, never from bearings lines.
+// The pattern is the old phrasing: a backticked knob line (`Support: fix-small`, `loop: on`, `Promote:`) or the
+// `## Generators` heading, which a skill only writes when it greps bearings for the knob. A skill describes a value
+// as "the `support` knob reads `fix-small`" and fetches it with `node scripts/plan/improve.mjs`.
+describe('the named skills read knobs through the resolver (A2)', () => {
+  const STALE = [/`(?:Support|Promote|stall_action|Research|UI cadence)(?::|: [^`\n]*)`/, /`loop: [^`\n]*`/, /## Generators/];
+  const READERS = {
+    'skills': ['march', 'triage', 'expand', 'iterate', 'digest'],
+    'templates/skills': ['march', 'triage', 'expand', 'iterate', 'critique', 'digest'],
+  };
+  const stale = (text) => STALE.filter((re) => re.test(text.replace(/\s+/g, ' '))).map(String);
+
+  it('the check catches the old phrasings', () => {
+    for (const old of ['else `Support:` in `plan/bearings.md`', 'Under `Promote: aged` (or', 'Runs when bearings says `loop: on`', '`stall_action: promote` under', 'a `## Generators` line', 'with `UI cadence: critique` or']) {
+      assert.ok(stale(old).length, old);
+    }
+    for (const fine of ['the `support` knob reads `fix-small`', 'a `loop:do` label and `loop:veto`', 'the `Improve:` dial', '`UI: none` browses nothing']) assert.deepEqual(stale(fine), [], fine);
+  });
+  for (const [dir, names] of Object.entries(READERS)) {
+    for (const name of names) {
+      const rel = `${dir}/${name}.md`;
+      const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+      it(`${rel} fetches knobs with improve.mjs and greps none from bearings`, () => {
+        assert.match(text, /scripts\/plan\/improve\.mjs/, `${rel} never names the resolver`);
+        assert.deepEqual(stale(text), [], `${rel} reads a knob line from bearings itself`);
+      });
+    }
+  }
+  it('nexus\'s own critique reads no dial knob (its GUI pass is not cadence-gated)', () => {
+    assert.deepEqual(stale(fs.readFileSync(path.join(ROOT, 'skills/critique.md'), 'utf8')), []);
+  });
+});
+
+describe('the cadence step reads the dial when the variable is unset (A2)', () => {
+  for (const file of ['.github/workflows/march.yml', '.github/workflows/heartbeat.yml', 'templates/.github/workflows/march.yml', 'templates/.github/workflows/heartbeat.yml']) {
+    it(`${file}: every Cadence step falls back to improve.mjs --get cadence --if-set`, () => {
+      const text = fs.readFileSync(path.join(ROOT, file), 'utf8');
+      const runs = text.split('\n').filter((l) => /cadence\.mjs resolve/.test(l));
+      assert.ok(runs.length, `${file} has no cadence resolve step`);
+      for (const l of runs) assert.match(l, /--cadence "\$\{CADENCE:-\$\(node scripts\/plan\/improve\.mjs --get cadence --if-set/, l.trim());
+    });
+  }
 });
