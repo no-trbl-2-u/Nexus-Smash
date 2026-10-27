@@ -295,3 +295,10 @@ test('a missing ARCHIVE.md starts from an empty archive instead of refusing', ()
   assert.ok(archive.content.endsWith('- 2026-03-08 · 15 · 15a: Cross-link drain · 15a15a1\n'))
   assert.ok(warnings.some((w) => /ARCHIVE\.md was missing/.test(w)))
 })
+
+test('words: a cut that lands on a dangling function word backs up; a whole title is never trimmed', async () => {
+  const { words } = await import('../upgrade-plan.mjs')
+  assert.equal(words('Retire the dead doctrine string from the engine-truth MCP now', 5), 'Retire the dead doctrine string')
+  assert.equal(words('Stop publishing the private DevLog: the in-repo half of the Pages scope-down', 10), 'Stop publishing the private DevLog: the in-repo half')
+  assert.equal(words('Hazard v2 in', 3), 'Hazard v2 in')
+})
