@@ -535,6 +535,8 @@ nexus/
 │   ├── __tests__/kit-id.test.mjs      # its pure suite (scripts leg)
 │   ├── surface.mjs                        # the surface leg's checker: refine:/lessons: commits in origin/main..HEAD against surface.json
 │   ├── __tests__/surface.test.mjs         # its pure suite (scripts leg)
+│   ├── refine.mjs                         # /refine's script: gates on Improve: bold, writes .scratch/refine/<verb>/context/, validates a proposal (2 inv + 2 dom citing evidence, or KEEP_BASE)
+│   ├── __tests__/refine.test.mjs          # its pure suite (scripts leg)
 │   ├── __tests__/surface-run.test.mjs     # its scratch-repo suite (scripts-git)
 │   ├── adopt-check.mjs                # A5's proof: an adopter carries templates/ (placeholders aside), none of plan/ or identity/, no upstream name
 │   ├── __tests__/adopt-check.test.mjs # its pure suite (scripts leg)

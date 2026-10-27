@@ -1004,6 +1004,7 @@ const PURE_SUITES = [
   'scripts/__tests__/kit-id.test.mjs',
   'scripts/__tests__/adopt-check.test.mjs',
   'scripts/__tests__/surface.test.mjs',
+  'scripts/__tests__/refine.test.mjs',
 ]
 const GIT_SUITES = [
   'templates/scripts/__tests__/settle-run.test.mjs',
