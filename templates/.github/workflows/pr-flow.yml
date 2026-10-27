@@ -6,6 +6,8 @@ run-name: pr-flow ${{ github.event.action }} PR ${{ github.event.pull_request.nu
 # (`claims prune` asks GitHub for each PR'd claim's state). That
 # covers the cloud loop's PRs and every contributor's alike; the
 # owner's settle folds a merged PR's pending files in afterwards.
+# A merged loop PR's `nexus/<run>` head branch is deleted too (it
+# is the loop's own, in this repository, so nothing is lost).
 #
 # pull_request_target runs this file from the default branch with
 # a write token, and never checks out the PR's code: it reads only
@@ -45,3 +47,14 @@ jobs:
           GIT_COMMITTER_NAME: nexus-claims
           GIT_COMMITTER_EMAIL: nexus-claims@users.noreply.github.com
         run: node scripts/claims.mjs prune
+
+      - name: Delete the merged loop branch
+        if: >-
+          github.event.pull_request.merged == true
+          && github.event.pull_request.head.repo.full_name == github.repository
+          && startsWith(github.event.pull_request.head.ref, 'nexus/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" || echo "branch $BRANCH already gone"
