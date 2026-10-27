@@ -79,6 +79,15 @@ describe('the UI knobs', () => {
     assert.deepEqual(readUiKnobs(bearings(['**UI:** url https://example.com', '**UI cadence:** iterate'])).walks, { critique: false, iterate: true });
     assert.deepEqual(readUiKnobs(bearings(['**UI:** url https://example.com'])).walks, { critique: true, iterate: false });
   });
+  it('takes the cadence from the Improve dial when no UI cadence line is set (spec 59.2)', () => {
+    const posture = (pos, ...rows) => ['## Plan expansion posture', '', `Improve: ${pos}`, '', '**UI:** url https://example.com', ...rows, ''].join('\n');
+    assert.deepEqual(readUiKnobs(posture('gentle')).walks, { critique: false, iterate: false });
+    assert.deepEqual(readUiKnobs(posture('steady')).walks, { critique: true, iterate: false });
+    assert.deepEqual(readUiKnobs(posture('bold')).walks, { critique: false, iterate: true });
+    assert.deepEqual(readUiKnobs(posture('bold', '**UI cadence:** critique')).walks, { critique: true, iterate: false });
+    assert.deepEqual(readUiKnobs(posture('bold', '**UI cadence:** none')).walks, { critique: false, iterate: false });
+    assert.deepEqual(readUiKnobs(bearings(['**UI:** url https://example.com'])).walks, { critique: true, iterate: false });
+  });
   it('reads dev mode but walks nothing with it yet', () => {
     const k = readUiKnobs(bearings(['**UI:** `dev "npm run dev" 5173`']));
     assert.equal(k.mode, 'dev');

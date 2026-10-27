@@ -111,15 +111,17 @@ etc.) and the next pass re-runs.
 
 ## 4a. The scripted walk (Path A2)
 
-`plan/bearings.md`'s four UI knobs decide it
-(`node scripts/ui-walk.mjs --knobs` prints them and
-`walks.critique`):
+`plan/bearings.md`'s UI lines and the `ui` knob of the
+improvement dial (`node scripts/plan/improve.mjs --get ui`)
+decide it; `node scripts/ui-walk.mjs --knobs` prints them and
+`walks.critique`:
 
 - **`UI: none`** (the default, or no `UI:` line): nothing
   browses. No walk; in CI the reader uses WebFetch.
-- **`UI: url <base>`** with `UI cadence: critique` or
-  `both`: when browser tools aren't there, run
-  `node scripts/ui-walk.mjs --json` (foreground) before Step
+- **`UI: url <base>`** with the `ui` knob at `critique` or
+  `both` (the default when no dial is set): when browser tools
+  aren't there, run `node scripts/ui-walk.mjs --json`
+  (foreground) before Step
   2. It walks `UI routes:` at desktop (1280x800) and mobile
   (390x844) and writes `.nexus/walk/<iso>/walk.json` plus one
   PNG per screen. Pass the reader that folder; it reads

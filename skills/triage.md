@@ -32,25 +32,27 @@ you add, as `/plot` does).
    (`agents.md` "Operational secrets").
 2. **List candidates:** open issues without `triage:*` labels,
    excluding `loop:opened` (the loop's own mirrors).
-3. **Classify** each: `docs | bug | enhancement | lesson |
-   question`. `lesson` = an adopter reporting something the
-   kit taught wrong or missed — the highest-value class
-   (bearings standing decision 3). Opened via
-   `.github/ISSUE_TEMPLATE/*.yml`? The form's label (`bug`,
-   `lesson`, `enhancement`, or `triage:needs-user` direct) IS
-   the classification — skip re-deriving it from prose.
-   **Support** (spec 54): `node scripts/plan/support.mjs
-   route <N> --kind <class>` reads the level (`NEXUS_SUPPORT`,
-   else `Support:` in `plan/bearings.md`), the author
-   association and labels, never the text. `stock` → steps 4
-   and 5. `bug` → label `triage:loop-queued` plus the class
-   (a `loop:do` comes off), skip 4 and 5, and once step 7
-   lands run `skills/bug.md` on it: a small fix lands this
-   tick, a larger one is plotted Asap (past `asap_cap`, an
-   AUDIT row as in step 5), both in the spec that owns the
-   area. An enhancement whose size is a scope or taste call
-   goes `triage:needs-user`. Report the routed set (`fix`,
-   `asap` or `none`) to `/march` Step 1.
+3. **Classify** each:
+   `docs | bug | enhancement | lesson | question`. `lesson` = an
+   adopter reporting something the kit taught wrong or missed —
+   the highest-value class (bearings standing decision 3).
+   Opened via `.github/ISSUE_TEMPLATE/*.yml`? The form's label
+   (`bug`, `lesson`, `enhancement`, or `triage:needs-user`
+   direct) IS the classification — skip re-deriving it from
+   prose. **Support** (spec 54):
+   `node scripts/plan/support.mjs route <N> --kind <class>`
+   reads the level
+   (`node scripts/plan/improve.mjs --get support`:
+   `NEXUS_SUPPORT` wins, else the dial and the bearings line),
+   the author association and labels, never the text. `stock` →
+   steps 4 and 5. `bug` → label `triage:loop-queued` plus the
+   class (a `loop:do` comes off), skip 4 and 5, and once step 7
+   lands run `skills/bug.md` on it: a small fix lands this tick,
+   a larger one is plotted Asap (past `asap_cap`, an AUDIT row
+   as in step 5), both in the spec that owns the area. An
+   enhancement whose size is a scope or taste call goes
+   `triage:needs-user`. Report the routed set (`fix`, `asap` or
+   `none`) to `/march` Step 1.
 4. **Extend before you add** (every class but `question`):
    `node scripts/plan/triage-match.mjs <N>` scores the issue
    against the open specs (title, open chunk lines, Design) and

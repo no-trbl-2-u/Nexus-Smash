@@ -62,12 +62,15 @@ test('a v1 bearings gets every bearings knob, and the kit\'s parsers read them b
   assert.match(text, /nexus upgrade` \(2026-10-25\)/);
   const status = Object.fromEntries(knobs.map((k) => [k.knob, [k.status, k.value]]));
   assert.deepEqual(status, {
-    Support: ['written', 'triage-only'], NEXUS_SUPPORT: ['unset', null], Promote: ['written', 'owner'], Generators: ['written', '(none)'],
+    Improve: ['written', 'gentle'], Support: ['written', 'triage-only'], NEXUS_SUPPORT: ['unset', null], Promote: ['written', 'owner'], Generators: ['written', '(none)'],
     stall_action: ['written', 'alert'], loop: ['written', 'off'], UI: ['written', 'none'], NEXUS_CADENCE: ['unset', null],
     NEXUS_CHAIN_MAX: ['set', '0'], NEXUS_IDLE_BACKOFF: ['set', '0'], NEXUS_QUOTA_MAX: ['unset', null],
   });
   assert.deepEqual(knobs.filter((k) => k.line).map((k) => k.line), ['gh variable set NEXUS_CHAIN_MAX --body 0', 'gh variable set NEXUS_IDLE_BACKOFF --body 0']);
 
+  const { dial, resolve } = await kitScript('plan/improve.mjs');
+  assert.deepEqual([dial(text).position, dial(text).set, dial(text).warnings], ['gentle', true, []], 'the dial reads gentle from the section the upgrade made');
+  assert.ok(resolve(text).knobs.every((k) => k.value === k.dial), 'the written lines say what gentle says');
   const { supportLevel } = await kitScript('plan/support.mjs');
   assert.deepEqual(supportLevel(text, {}).level, 'triage-only');
   const { knobs: promote } = await kitScript('plan/promote.mjs');
@@ -89,7 +92,7 @@ test('a knob the repo already set is kept, never overwritten; a full bearings ga
   const { text, knobs } = writeKnobs(own, { today: '2026-10-25' });
   const status = Object.fromEntries(knobs.filter((k) => k.at !== 'var').map((k) => [k.knob, [k.status, k.value]]));
   assert.deepEqual(status, {
-    Support: ['kept', 'fix-all'], Promote: ['written', 'owner'], Generators: ['kept', '(none)'],
+    Improve: ['written', 'gentle'], Support: ['kept', 'fix-all'], Promote: ['written', 'owner'], Generators: ['kept', '(none)'],
     stall_action: ['written', 'alert'], loop: ['kept', 'on'], UI: ['kept', 'url'],
   });
   assert.equal((text.match(/^## Generators$/gm) || []).length, 1, 'no second Generators section');
@@ -113,7 +116,7 @@ test('a prose line under a knob name is not the repo\'s setting: the conservativ
 
 test('no bearings at all: one is added holding only the knobs', () => {
   const { text } = writeKnobs(null, { today: '2026-10-25' });
-  assert.match(text, /^# Bearings\n\n## Loop knobs\n/);
+  assert.match(text, /^# Bearings\n\n## Plan expansion posture\n[\s\S]*\nImprove: gentle\n[\s\S]*\n## Loop knobs\n/);
   assert.match(text, /\*\*UI:\*\* `none`/);
   assert.match(text, /## Generators\n[\s\S]*- \(none\)\n$/);
 });
@@ -123,10 +126,28 @@ test('the report prints the knobs: lines written, the repo\'s kept, vars to leav
   const out = render({ shape: 'v1', why: 'w', repo: '/r', files: [], archive: [], warnings: [], gate: [], knobs });
   for (const want of [
     'knobs (conservative: the v1 loop runs as it did; turn each up later)',
-    'plan/bearings.md  Support triage-only, Promote owner, ## Generators (none), stall_action alert, UI none',
+    'plan/bearings.md  Improve gentle, Support triage-only, Promote owner, ## Generators (none), stall_action alert, UI none',
     "kept (the repo's) loop on",
     'leave unset      NEXUS_SUPPORT, NEXUS_CADENCE, NEXUS_QUOTA_MAX',
     'gh variable set NEXUS_CHAIN_MAX --body 0',
     'gh variable set NEXUS_IDLE_BACKOFF --body 0',
   ]) assert.ok(out.includes(want), `${want}\n---\n${out}`);
+});
+
+test('the Improve dial is written inside the repo\'s own Plan expansion posture section, kept when set, and written inside when one sits outside', async () => {
+  const withSection = '# B\n\n## Plan expansion posture\n\n- Mode: **bold**\n\n## Hard rules\n\n- Never publish a draft.\n';
+  const { text, knobs } = writeKnobs(withSection, { today: '2026-10-25' });
+  assert.deepEqual(knobs.find((k) => k.knob === 'Improve'), { knob: 'Improve', at: 'bearings', value: 'gentle', status: 'written' });
+  assert.match(text, /^## Plan expansion posture\n\nImprove: gentle\n\n- Mode: \*\*bold\*\*\n\n## Hard rules/m);
+  assert.equal((text.match(/^## Plan expansion posture$/gm) || []).length, 1, 'no second posture section');
+  assert.equal(writeKnobs(text).text, text, 'idempotent');
+  const { dial } = await kitScript('plan/improve.mjs');
+  assert.equal(dial(text).position, 'gentle');
+
+  const own = withSection.replace('- Mode: **bold**', 'Improve: steady\n- Mode: **bold**');
+  assert.deepEqual(writeKnobs(own).knobs.find((k) => k.knob === 'Improve'), { knob: 'Improve', at: 'bearings', value: 'steady', status: 'kept' });
+  assert.ok(!writeKnobs(own).text.includes('Improve: gentle'), 'the repo\'s own dial is never overwritten');
+
+  const outside = '# B\n\nImprove: bold\n\n## Plan expansion posture\n\n- Mode: strict\n';
+  assert.equal(dial(writeKnobs(outside).text).position, 'gentle', 'a line outside the section is not the dial; the upgrade writes one inside');
 });
