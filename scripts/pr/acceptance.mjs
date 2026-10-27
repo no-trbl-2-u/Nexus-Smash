@@ -184,6 +184,28 @@ export function summary({ rows, replay }) {
   return out.join('\n');
 }
 
+/** The markdown the judge appends to the step summary: a verdict line, the table (one row per A-ID) and the
+ * failures. Returned, not written, so a suite can read it. */
+export function stepSummary(result) {
+  const out = [`## judge: ${result.ok ? 'pass' : 'fail'}`, '', result.rows.length ? summary(result) : '_No acceptance ID is closed by this PR._'];
+  if (result.failures.length) out.push('', ...result.failures.map((f) => `- ${f}`));
+  return `${out.join('\n')}\n`;
+}
+
+/** Appends the step summary to the file named by GITHUB_STEP_SUMMARY, when that is set. Returns whether it wrote; a
+ * file that cannot be written is a warning, never a verdict (the exit code is the check). */
+export function writeStepSummary(result, { env = process.env, append = fs.appendFileSync } = {}) {
+  const file = env.GITHUB_STEP_SUMMARY;
+  if (!file) return false;
+  try {
+    append(file, `${stepSummary(result)}\n`);
+    return true;
+  } catch (e) {
+    console.error(`judge: step summary not written: ${e.message}`);
+    return false;
+  }
+}
+
 // What a child process sees: PATH, a home, the temp dirs and (on Windows) the system root. Nothing else, so no
 // token in the judge's environment reaches a PR's code, and a nested node:test context does not leak in.
 const KEEP_ENV = new Set(['PATH', 'HOME', 'USERPROFILE', 'SYSTEMROOT', 'SYSTEMDRIVE', 'WINDIR', 'TEMP', 'TMP', 'TMPDIR']);
@@ -272,6 +294,7 @@ function main(argv) {
     console.error(`judge: ${e.message}`);
     return 2;
   }
+  writeStepSummary(result);
   if (args.includes('--json')) console.log(JSON.stringify(result, null, 2));
   else {
     console.log(summary(result));
