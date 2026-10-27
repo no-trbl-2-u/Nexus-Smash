@@ -50,11 +50,20 @@ jobs:
 
       - name: Delete the merged loop branch
         if: >-
-          github.event.pull_request.merged == true
+          always()
+          && github.event.pull_request.merged == true
           && github.event.pull_request.head.repo.full_name == github.repository
           && startsWith(github.event.pull_request.head.ref, 'nexus/')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" || echo "branch $BRANCH already gone"
+        run: |
+          if out=$(gh api -X DELETE "repos/$REPO/git/refs/heads/$BRANCH" 2>&1); then
+            echo "deleted $BRANCH"
+          elif echo "$out" | grep -q 'Reference does not exist'; then
+            echo "branch $BRANCH already gone"
+          else
+            echo "$out"
+            exit 1
+          fi

@@ -1150,7 +1150,7 @@ function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(RO
     texts.push(text)
     const i = text.indexOf('Delete the merged loop branch')
     const step = i < 0 ? '' : text.slice(i)
-    if (!step.includes('pull_request.merged == true') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true and a nexus/ head ref, gh api -X DELETE git/refs/heads/...)`)
+    if (!step.includes('pull_request.merged == true') || !step.includes('head.repo.full_name == github.repository') || !step.includes('Reference does not exist') || !step.includes("startsWith(github.event.pull_request.head.ref, 'nexus/')") || !/gh api -X DELETE .*git\/refs\/heads\//.test(step)) failures.push(`${file}: no step deletes a merged loop PR's nexus/<run> branch (gated on merged == true, this repo's head and a nexus/ head ref, gh api -X DELETE git/refs/heads/..., only a missing ref tolerated)`)
   }
   if (texts.length === 2 && texts[0] !== texts[1]) failures.push(`${files[0]}: must be byte-identical to ${files[1]}`)
   return failures
