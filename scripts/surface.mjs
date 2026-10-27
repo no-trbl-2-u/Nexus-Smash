@@ -3,23 +3,33 @@
 // surface.json at the root names what the loop may edit about itself
 // without a briefed chunk: { allow: [glob...], deny: [glob...],
 // caps: { <glob>: <chars> } }. The verify gate's surface leg calls
-// checkRange(): a commit whose subject starts `refine:` or `lessons:`
-// is surface-bound and fails when it touches a path outside the
-// allow-list (or inside the deny-list), edits a bearings section the
-// list does not name, or adds more characters to a file than its cap.
-// Any other subject (a briefed chunk's feat:, docs:, ...) is not
-// inspected. verify.mjs runs main on import, so the logic lives here.
+// checkRange(): a commit whose subject starts `refine` or `lessons`
+// (any case, any punctuation after: `Refine:`, `refine!:`, `refine :`
+// are all bound) is surface-bound and fails when it touches a path
+// outside the allow-list (or inside the deny-list), changes a bearings
+// section the list does not name, adds or removes a heading there,
+// changes a binary file, or pushes a file over its cap. Any other
+// subject (a briefed chunk's feat:, docs:, ...) is not inspected.
+// verify.mjs runs main on import, so the logic lives here.
 //
 // Conventions: `*` stays inside one path segment, `**` crosses them;
-// an allow entry `path#Heading` allows only the lines under that
-// `## Heading` of the file; deny beats allow; a cap key is a glob and
-// the first key (in file order) matching the path applies; the cap
-// counts characters ADDED to that file by the commit.
+// an allow entry `path#Heading` allows only the body of that `## `
+// section of the file, with every other section and the heading list
+// unchanged; deny beats allow; a cap key is a glob and the first key
+// (in file order) matching the path applies. A cap counts the
+// characters ADDED to a file, summed over every bound commit in the
+// range, so two commits cannot split one budget.
+//
+// The range is merge-base(base, HEAD)..HEAD, merges included (a merge
+// is diffed against its first parent). base is origin/$GITHUB_BASE_REF
+// when set, else origin/main. A base that does not resolve, or a
+// shallow clone, fails closed.
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
-export const BOUND = /^(refine|lessons)(\([^)]*\))?:/
+export const BOUND = /^\s*(refine|lessons)\b/i
+const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
 export function globToRegExp(glob) {
   let re = ''
@@ -44,94 +54,126 @@ export function loadSurface(root) {
   return { surface: problems.length ? null : s, problems }
 }
 
-/** Split a unified diff (-U0) into { path, added, hunks: [{ start, count }] } per file. */
-export function parsePatch(patch) {
-  const files = []
-  let cur = null
+/** Characters added by a single-file -U0 patch (header lines before the first hunk are not content). */
+export function addedChars(patch) {
+  let inHunk = false
+  let n = 0
   for (const line of patch.split('\n')) {
-    const h = /^diff --git a\/(.+) b\/(.+)$/.exec(line)
-    if (h) { cur = { path: h[2], added: 0, hunks: [], deleted: false }; files.push(cur); continue }
-    if (!cur) continue
-    if (line.startsWith('+++ ')) { if (line === '+++ /dev/null') cur.deleted = true; continue }
-    if (line.startsWith('--- ')) continue
-    const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/.exec(line)
-    if (m) { cur.hunks.push({ start: Number(m[1]), count: m[2] === undefined ? 1 : Number(m[2]) }); continue }
-    if (line.startsWith('+')) cur.added += line.length // the '+' stands for the newline
+    if (line.startsWith('@@')) { inHunk = true; continue }
+    if (line.startsWith('diff --git')) { inHunk = false; continue }
+    if (inHunk && line.startsWith('+')) n += line.length // the '+' stands for the newline
   }
-  return files
+  return n
 }
 
-/** The `## ` sections the changed lines of a file fall in (null = before the first heading). */
-function sectionsTouched(hunks, newText) {
-  const lines = newText.replace(/\r\n/g, '\n').split('\n')
-  const at = (n) => {
-    for (let i = Math.min(n, lines.length) - 1; i >= 0; i--) {
-      const m = /^##\s+(.*?)\s*$/.exec(lines[i])
-      if (m) return m[1]
-    }
-    return null
+/** Split markdown into its `## ` headings, in order, and each section's body (key '' = above the first heading). */
+export function sections(text) {
+  const heads = []
+  const bodies = new Map([['', []]])
+  let cur = ''
+  for (const line of String(text ?? '').replace(/\r\n/g, '\n').split('\n')) {
+    const m = /^##\s+(.*?)\s*$/.exec(line)
+    if (m) { cur = m[1]; heads.push(cur); if (!bodies.has(cur)) bodies.set(cur, []); else bodies.get(cur).push(line); continue }
+    bodies.get(cur).push(line)
   }
-  const out = new Set()
-  for (const { start, count } of hunks) {
-    const last = count === 0 ? start : start + count - 1
-    for (let n = Math.max(start, 1); n <= Math.max(last, 1); n++) out.add(at(n))
+  return { heads, bodies: new Map([...bodies].map(([k, v]) => [k, v.join('\n')])) }
+}
+
+/** Why a change to a `#Heading`-scoped file leaves its allowed sections, or [] when it stays inside. */
+export function sectionProblems(oldText, newText, allowedHeads) {
+  const a = sections(oldText)
+  const b = sections(newText)
+  const out = []
+  if (a.heads.join('\n') !== b.heads.join('\n')) out.push('adds, removes or renames a "## " heading')
+  const names = new Set([...a.bodies.keys(), ...b.bodies.keys()])
+  for (const k of names) {
+    if (allowedHeads.includes(k)) continue
+    if (a.bodies.get(k) !== b.bodies.get(k)) out.push(k === '' ? 'changes text above the first heading' : `changes section "${k}"`)
   }
   return out
 }
 
 /**
  * Problems with one commit against the surface; [] when clean or not surface-bound.
- * `readNew(path)` returns the file's text after the commit (needed for `#Heading` entries).
+ * commit = { subject, files: [{ path, added, binary }], readOld(path), readNew(path) }.
+ * `totals` carries characters already added per path by earlier bound commits in the range
+ * (mutated); a cap breach is reported by the commit that crosses it.
  */
-export function checkCommit({ subject, patch, readNew }, surface) {
+export function checkCommit({ subject, files, readOld = () => null, readNew = () => null }, surface, totals = {}) {
   if (!BOUND.test(subject)) return []
   const problems = []
-  for (const f of parsePatch(patch)) {
-    const where = `${f.path}`
+  for (const f of files) {
+    const where = f.path
     const denied = surface.deny.find((g) => matches(g, f.path))
     if (denied) { problems.push(`${where}: denied by "${denied}"`); continue }
     const whole = surface.allow.some((g) => !g.includes('#') && matches(g, f.path))
     if (!whole) {
       const heads = surface.allow.filter((g) => g.includes('#') && matches(g.slice(0, g.indexOf('#')), f.path)).map((g) => g.slice(g.indexOf('#') + 1))
       if (heads.length === 0) { problems.push(`${where}: outside the allow-list`); continue }
-      if (f.deleted) { problems.push(`${where}: deleted, but only sections ${heads.map((h) => `"${h}"`).join(', ')} are editable`); continue }
-      const touched = sectionsTouched(f.hunks, readNew(f.path) ?? '')
-      const bad = [...touched].filter((s) => s === null || !heads.includes(s))
-      if (bad.length) { problems.push(`${where}: touches ${bad.map((s) => (s === null ? 'text above the first heading' : `section "${s}"`)).join(', ')}; only ${heads.map((h) => `"${h}"`).join(', ')} may change`); continue }
+      const sp = f.binary ? ['is binary'] : sectionProblems(readOld(f.path), readNew(f.path), heads)
+      if (sp.length) { problems.push(`${where}: ${sp.join('; ')}; only ${heads.map((h) => `"${h}"`).join(', ')} may change`); continue }
     }
     const capKey = Object.keys(surface.caps).find((g) => matches(g, f.path))
-    if (capKey !== undefined && f.added > surface.caps[capKey]) problems.push(`${where}: adds ${f.added} characters, over the ${surface.caps[capKey]} cap of "${capKey}"`)
+    if (f.binary) { if (capKey !== undefined) problems.push(`${where}: binary change on a capped path`); continue }
+    if (capKey !== undefined) {
+      const before = totals[f.path] ?? 0
+      totals[f.path] = before + f.added
+      if (before <= surface.caps[capKey] && totals[f.path] > surface.caps[capKey]) problems.push(`${where}: adds ${totals[f.path]} characters across the range, over the ${surface.caps[capKey]} cap of "${capKey}"`)
+    }
   }
   return problems
 }
 
-const git = (root, args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
+const git = (root, args) => execFileSync('git', ['-c', 'core.quotepath=off', ...args], { cwd: root, encoding: 'utf-8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] })
+const tryGit = (root, args) => { try { return git(root, args).trim() } catch { return null } }
 
-/**
- * The commits to inspect: origin/main..HEAD when that names any, else HEAD alone
- * (an owner-mode commit made on main, before its push).
- */
-export function commitsToCheck(root) {
-  let range = []
-  try {
-    git(root, ['rev-parse', '--verify', '-q', 'origin/main'])
-    range = git(root, ['rev-list', '--no-merges', 'origin/main..HEAD']).split('\n').filter(Boolean)
-  } catch { /* no origin/main: HEAD alone */ }
-  if (range.length) return range
-  try { return git(root, ['rev-list', '--no-merges', '-n', '1', 'HEAD']).split('\n').filter(Boolean) } catch { return [] }
+/** The commits to inspect, oldest first; { error } when the base cannot be trusted (fail closed). */
+export function commitsToCheck(root, env = process.env) {
+  if (tryGit(root, ['rev-parse', '--is-shallow-repository']) === 'true') return { error: 'surface: shallow clone; the range cannot be walked (fetch full depth: git fetch --unshallow, or actions/checkout fetch-depth: 0)' }
+  const ref = env.GITHUB_BASE_REF ? `origin/${env.GITHUB_BASE_REF}` : 'origin/main'
+  if (tryGit(root, ['rev-parse', '--verify', '-q', ref]) === null) return { error: `surface: base ${ref} does not resolve; fetch it so the range can be walked` }
+  const base = tryGit(root, ['merge-base', ref, 'HEAD'])
+  if (!base) return { error: `surface: no merge-base between ${ref} and HEAD` }
+  const list = git(root, ['rev-list', '--reverse', `${base}..HEAD`]).split('\n').filter(Boolean)
+  if (list.length) return { shas: list }
+  const head = tryGit(root, ['rev-parse', 'HEAD'])
+  return { shas: head ? [head] : [] }
 }
 
-/** Run the surface check over the commits `commitsToCheck` names. */
-export function checkRange(root, surface, shas = commitsToCheck(root)) {
+/** Per-file facts for one commit against its first parent (empty tree for a root). */
+function commitFiles(root, sha) {
+  const parent = tryGit(root, ['rev-parse', '--verify', '-q', `${sha}^1`]) ?? EMPTY_TREE
+  const problems = []
+  const files = []
+  const raw = git(root, ['diff', '--numstat', '-z', '--no-renames', parent, sha])
+  for (const entry of raw.split('\0').filter((e) => e !== '')) {
+    const m = /^(\d+|-)\t(\d+|-)\t([\s\S]+)$/.exec(entry)
+    if (!m) { problems.push(`unparsed diff entry ${JSON.stringify(entry)}`); continue }
+    const binary = m[1] === '-'
+    const p = m[3]
+    const patch = binary ? '' : git(root, ['diff', '-U0', '--no-renames', parent, sha, '--', `:(literal)${p}`])
+    files.push({ path: p, binary, added: addedChars(patch) })
+  }
+  return { parent, files, problems }
+}
+
+/** Run the surface check over the range `commitsToCheck` names. */
+export function checkRange(root, surface, opts = {}) {
+  const r = opts.shas ? { shas: opts.shas } : commitsToCheck(root, opts.env)
+  if (r.error) return { failures: [r.error], checked: 0, bound: 0 }
   const failures = []
+  const totals = {}
   let bound = 0
-  for (const sha of shas) {
+  for (const sha of r.shas) {
     const subject = git(root, ['log', '-1', '--format=%s', sha]).trim()
     if (!BOUND.test(subject)) continue
     bound++
-    const patch = git(root, ['show', '--format=', '--no-renames', '-U0', '--root', sha])
-    const readNew = (p) => { try { return git(root, ['show', `${sha}:${p}`]) } catch { return null } }
-    for (const p of checkCommit({ subject, patch, readNew }, surface)) failures.push(`${sha.slice(0, 7)} "${subject}": ${p}`)
+    const { parent, files, problems } = commitFiles(root, sha)
+    const readNew = (p) => tryGitRaw(root, `${sha}:${p}`)
+    const readOld = (p) => tryGitRaw(root, `${parent}:${p}`)
+    for (const p of [...problems, ...checkCommit({ subject, files, readOld, readNew }, surface, totals)]) failures.push(`${sha.slice(0, 7)} "${subject}": ${p}`)
   }
-  return { failures, checked: shas.length, bound }
+  return { failures, checked: r.shas.length, bound }
 }
+
+function tryGitRaw(root, spec) { try { return git(root, ['show', spec]) } catch { return null } }

@@ -1,31 +1,30 @@
-// surface.mjs (spec 64.1, A1): the pure half. Globs, the patch parser and checkCommit on canned patches; the
-// scratch-repo half is surface-run.test.mjs. A denied path or an over-cap commit fails every time; the same
-// patch under a briefed subject passes.
+// surface.mjs (spec 64.1, A1): the pure half. Globs, addedChars, section checks and checkCommit on canned file
+// facts; the scratch-repo half is surface-run.test.mjs. A denied path or an over-cap commit fails every time;
+// the same facts under a briefed subject pass.
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { checkCommit, globToRegExp, loadSurface, parsePatch } from '../surface.mjs'
+import { BOUND, addedChars, checkCommit, globToRegExp, loadSurface, sectionProblems } from '../surface.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const { surface, problems } = loadSurface(ROOT)
 
-const patchFor = (file, added, at = 1) =>
-  `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -${at},0 +${at},${added.length} @@\n${added.map((l) => `+${l}`).join('\n')}\n`
+const file = (p, added = 1, extra = {}) => ({ path: p, added, binary: false, ...extra })
+const check = (subject, files, texts = {}, totals = {}) =>
+  checkCommit({ subject, files, readOld: (p) => texts[p]?.[0] ?? null, readNew: (p) => texts[p]?.[1] ?? null }, surface, totals)
 
 describe('surface.json', () => {
   it('exists and parses', () => {
     assert.deepEqual(problems, [])
     assert.ok(surface.allow.length && surface.deny.length && Object.keys(surface.caps).length)
   })
-  it('denies the always-forbidden paths and allows the named ones', () => {
-    for (const p of ['.claude/hooks/guard.mjs', '.claude/settings.json', '.github/workflows/night.yml', 'scripts/verify.mjs', 'scripts/pr/open.mjs', 'agents.md']) {
-      assert.equal(checkCommit({ subject: 'refine: march', patch: patchFor(p, ['x']), readNew: () => '' }, surface).length, 1, p)
+  it('denies the always-forbidden paths (including non-ASCII ones) and allows the named ones', () => {
+    for (const p of ['.claude/hooks/guard.mjs', '.claude/settings.json', '.github/workflows/night.yml', '.github/workflows/é.yml', 'scripts/verify.mjs', 'scripts/pr/open.mjs', 'agents.md']) {
+      assert.equal(check('refine: march', [file(p)]).length, 1, p)
     }
-    for (const p of ['skills/next.md', 'skills/next.lanes.md', 'identity/footguns.md']) {
-      assert.deepEqual(checkCommit({ subject: 'lessons: a', patch: patchFor(p, ['x']), readNew: () => '' }, surface), [], p)
-    }
+    for (const p of ['skills/next.md', 'skills/next.lanes.md', 'identity/footguns.md']) assert.deepEqual(check('lessons: a', [file(p)]), [], p)
   })
 })
 
@@ -38,47 +37,88 @@ describe('globToRegExp', () => {
   })
 })
 
-describe('parsePatch', () => {
-  it('counts added characters per file and reads hunks', () => {
-    const [f] = parsePatch(patchFor('skills/a.md', ['abc', 'de'], 4))
-    assert.equal(f.path, 'skills/a.md')
-    assert.equal(f.added, 4 + 3)
-    assert.deepEqual(f.hunks, [{ start: 4, count: 2 }])
+describe('subject binding', () => {
+  it('over-binds case and punctuation variants, not other verbs', () => {
+    for (const s of ['refine: x', 'Refine: x', 'REFINE: x', 'refine!: x', 'refine : x', ' refine: x', 'refine(skills): x', 'lessons: y', 'Lessons - y']) assert.ok(BOUND.test(s), s)
+    for (const s of ['feat: x', 'docs: refine: the gate', 'refinery: x', 'plan: lessons']) assert.ok(!BOUND.test(s), s)
+  })
+  it('fails a denied path under every variant', () => {
+    for (const s of ['Refine: x', 'refine!: x', 'refine : x', 'LESSONS: y']) assert.equal(check(s, [file('agents.md')]).length, 1, s)
+  })
+})
+
+describe('addedChars', () => {
+  it('counts added lines after the first hunk, not header lines', () => {
+    const patch = 'diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1,0 +1,2 @@\n+abc\n+de\n'
+    assert.equal(addedChars(patch), 4 + 3)
+    assert.equal(addedChars('diff --git a/s b/s\n--- a/s\n+++ b/s\n@@ -1 +1 @@\n-x\n++++ y\n'), 6) // a content line starting "+++" still counts
   })
 })
 
 describe('checkCommit', () => {
-  const bearings = ['# B', '', '## Locked', '', 'a', '', '## Generators', '', 'g', ''].join('\n')
-  it('fails a path outside the allow-list, whatever the verb in the bound set', () => {
-    for (const subject of ['refine: x', 'lessons: y', 'refine(skills): x']) {
-      assert.equal(checkCommit({ subject, patch: patchFor('README.md', ['x']), readNew: () => '' }, surface).length, 1, subject)
-    }
+  it('fails a path outside the allow-list', () => {
+    for (const subject of ['refine: x', 'lessons: y', 'refine(skills): x']) assert.equal(check(subject, [file('README.md')]).length, 1, subject)
   })
   it('fails over a cap and passes at it', () => {
     const cap = surface.caps['skills/*.md']
-    const over = [ 'y'.repeat(cap) ]
-    assert.equal(checkCommit({ subject: 'refine: x', patch: patchFor('skills/a.md', over), readNew: () => '' }, surface).length, 1)
-    const at = [ 'y'.repeat(cap - 1) ]
-    assert.deepEqual(checkCommit({ subject: 'refine: x', patch: patchFor('skills/a.md', at), readNew: () => '' }, surface), [])
+    assert.equal(check('refine: x', [file('skills/a.md', cap + 1)]).length, 1)
+    assert.deepEqual(check('refine: x', [file('skills/a.md', cap)]), [])
+  })
+  it('sums a file across commits: two half-cap-plus commits fail', () => {
+    const cap = surface.caps['skills/*.md']
+    const totals = {}
+    assert.deepEqual(check('refine: a', [file('skills/a.md', cap - 10)], {}, totals), [])
+    assert.equal(check('lessons: b', [file('skills/a.md', 20)], {}, totals).length, 1)
+    assert.equal(check('refine: c', [file('skills/a.md', 20)], {}, totals).length, 0, 'reported once, by the commit that crosses')
+    assert.deepEqual(check('refine: d', [file('skills/other.md', cap)], {}, totals), [], 'another file has its own budget')
+  })
+  it('a briefed commit in the range does not spend the budget', () => {
+    const cap = surface.caps['skills/*.md']
+    const totals = {}
+    assert.deepEqual(check('feat: big', [file('skills/a.md', cap * 3)], {}, totals), [])
+    assert.deepEqual(check('refine: x', [file('skills/a.md', cap)], {}, totals), [])
   })
   it('the lanes cap wins over the skills cap for a lanes file', () => {
-    const big = ['y'.repeat(surface.caps['skills/*.lanes.md'])]
-    assert.equal(checkCommit({ subject: 'lessons: x', patch: patchFor('skills/a.lanes.md', big), readNew: () => '' }, surface).length, 1)
+    assert.equal(check('lessons: x', [file('skills/a.lanes.md', surface.caps['skills/*.lanes.md'] + 1)]).length, 1)
   })
-  it('allows an allowed bearings section and fails a locked one', () => {
-    const ok = checkCommit({ subject: 'refine: x', patch: patchFor('plan/bearings.md', ['g2'], 9), readNew: () => bearings }, surface)
-    assert.deepEqual(ok, [])
-    const bad = checkCommit({ subject: 'refine: x', patch: patchFor('plan/bearings.md', ['a2'], 5), readNew: () => bearings }, surface)
-    assert.equal(bad.length, 1)
-    assert.match(bad[0], /Locked/)
+  it('a binary change on a capped path fails', () => {
+    assert.equal(check('refine: x', [file('skills/a.md', 0, { binary: true })]).length, 1)
   })
   it('does not inspect a briefed chunk commit to the same paths', () => {
-    for (const p of ['scripts/verify.mjs', 'agents.md', 'README.md', 'skills/a.md']) {
-      assert.deepEqual(checkCommit({ subject: 'feat: x', patch: patchFor(p, ['y'.repeat(99999)]), readNew: () => '' }, surface), [], p)
-    }
+    for (const p of ['scripts/verify.mjs', 'agents.md', 'README.md', 'skills/a.md']) assert.deepEqual(check('feat: x', [file(p, 99999)]), [], p)
   })
   it('does not bind a subject that merely contains the verb', () => {
-    assert.deepEqual(checkCommit({ subject: 'docs: refine: the gate', patch: patchFor('agents.md', ['x']), readNew: () => '' }, surface), [])
+    assert.deepEqual(check('docs: refine: the gate', [file('agents.md')]), [])
+  })
+})
+
+describe('bearings sections', () => {
+  const old = ['# B', '', 'intro', '', '## Locked', '', 'lock', '', '## Generators', '', 'g', '', '## Plan expansion posture', '', 'p', ''].join('\n')
+  const run = (neu) => check('refine: x', [file('plan/bearings.md')], { 'plan/bearings.md': [old, neu] })
+  it('allows a change inside an allowed section', () => {
+    assert.deepEqual(run(old.replace('\ng\n', '\ng\nmore\n')), [])
+    assert.deepEqual(run(old.replace('\np\n', '\np2\n')), [])
+  })
+  it('fails a change in a locked section or above the first heading', () => {
+    assert.match(run(old.replace('lock', 'lock2'))[0], /Locked/)
+    assert.match(run(old.replace('intro', 'intro2'))[0], /above the first heading/)
+  })
+  it('fails deleting a locked section, entire', () => {
+    const neu = old.replace('## Locked\n\nlock\n\n', '')
+    assert.equal(run(neu).length, 1)
+    assert.match(run(neu)[0], /heading|Locked/)
+  })
+  it('fails deleting just a locked heading to fold its body into an allowed one', () => {
+    const neu = old.replace('## Locked\n\nlock\n\n## Generators', '## Generators\n\nlock')
+    assert.ok(run(neu).length >= 1)
+    assert.match(sectionProblems(old, neu, ['Generators', 'Plan expansion posture']).join(';'), /heading/)
+  })
+  it('fails adding a heading, even inside an allowed section', () => {
+    assert.equal(run(old.replace('\ng\n', '\ng\n\n## Sneaky\n\nx\n')).length, 1)
+  })
+  it('fails a binary or a deleted bearings file', () => {
+    assert.equal(check('refine: x', [file('plan/bearings.md', 0, { binary: true })]).length, 1)
+    assert.equal(check('refine: x', [file('plan/bearings.md')], { 'plan/bearings.md': [old, null] }).length, 1)
   })
 })
 

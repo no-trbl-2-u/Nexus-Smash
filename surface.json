@@ -1,4 +1,5 @@
 {
+  "comment": "caps count characters added to a file, summed over every refine:/lessons: commit in the range; path#Heading allows one ## section only",
   "allow": [
     "skills/*.lanes.md",
     "skills/*.md",
