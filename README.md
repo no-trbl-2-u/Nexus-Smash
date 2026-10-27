@@ -767,6 +767,7 @@ nexus/
     │   ├── design/prompt.mjs          # the Claude Design prompt and addenda from the plan; design/prompts/NNN-<date>.md, numbered on
     │   ├── claims-codec.mjs           # the claims rules, pure (any claimant imports them)
     │   ├── claims.mjs                 # who builds what: orphan claims branch, compare-and-swap, --json
+    │   ├── board.mjs                  # read the typed board: snapshot + cursor, read, grep (& | parentheses), unfold
     │   ├── claims-board.mjs           # the claims board: one issue, created or edited from the claims branch
     │   ├── announce.mjs               # the notice board: owner lines outrank the command; REBOOT preempts
     │   ├── ledger.mjs                 # each session's live ledger (.nexus/sessions/), star names, fallen = stale beat
@@ -797,6 +798,7 @@ nexus/
     │   ├── __tests__/settle-run.test.mjs # settle end to end in a scratch repo (offline)
     │   ├── __tests__/claims-codec.test.mjs # the claims rules
     │   ├── __tests__/board-codec.test.mjs # the board's rules: dedup (x2), PATCH replacement, FAIL invalidation, the caps
+    │   ├── __tests__/board-read.test.mjs # the board's reading: snapshot order + cursor, grep expressions and errors, unfold
     │   ├── __tests__/claims-board.test.mjs # the board's table and issue (fake gh)
     │   ├── __tests__/push-policy.test.mjs # the push policy, pure
     │   ├── __tests__/install-hooks-run.test.mjs # installed hooks unset GIT_DIR: a gate's scratch repo never writes the real one
