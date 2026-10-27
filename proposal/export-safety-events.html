@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export Safety Events</title>
+<style>
+:root{--bg:#fafaf7;--fg:#1d1d1b;--muted:#6b6b66;--card:#fff;--line:#d9d8d2;--a:#c2410c;--b:#2563eb;--ok:#15803d;--no:#b91c1c}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151514;--fg:#ecebe6;--muted:#a3a29b;--card:#1f1f1d;--line:#3a3935;--a:#fb923c;--b:#60a5fa;--ok:#4ade80;--no:#f87171}}
+:root[data-theme="dark"]{--bg:#151514;--fg:#ecebe6;--muted:#a3a29b;--card:#1f1f1d;--line:#3a3935;--a:#fb923c;--b:#60a5fa;--ok:#4ade80;--no:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:880px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:28px;margin:0 0 4px}h2{margin:40px 0 8px;font-size:21px}
+.sub{color:var(--muted);margin:0 0 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:16px 0;overflow-x:auto}
+svg{width:100%;min-width:560px;height:auto;display:block}
+svg text{fill:var(--fg);font:13px system-ui,sans-serif}
+svg .small{font-size:11px;fill:var(--muted)}
+.box{fill:var(--card);stroke:var(--line);stroke-width:1.5}
+.acc{stroke:var(--a)}.blu{stroke:var(--b)}.grn{stroke:var(--ok)}
+.wire{stroke:var(--line);stroke-width:2;fill:none}
+.flow{stroke:var(--b);stroke-width:2;fill:none;stroke-dasharray:6 6;animation:dash 1.2s linear infinite}
+@keyframes dash{to{stroke-dashoffset:-24}}
+.tok{animation:hop 5s ease-in-out infinite}
+@keyframes hop{0%{transform:translate(0,0);opacity:0}8%{opacity:1}30%{transform:translate(170px,0)}55%{transform:translate(340px,0)}80%{transform:translate(510px,0);opacity:1}100%{transform:translate(510px,0);opacity:0}}
+.stop{animation:flash 2.5s ease-in-out infinite}
+@keyframes flash{50%{opacity:.3}}
+.tick{animation:grow 5s ease-in-out infinite;transform-origin:left center}
+@keyframes grow{0%,20%{transform:scaleX(.1)}70%,100%{transform:scaleX(1)}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+code{font-size:13px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;border:1px solid var(--line);font-size:12px;color:var(--muted)}
+.warn{border-left:4px solid var(--a)}
+@media (prefers-reduced-motion:reduce){.flow,.tok,.stop,.tick{animation:none}}
+</style>
+</head>
+<body><main>
+<h1>Count what stops the loop</h1>
+<p class="sub">Proposal: export Claude Code's <code>claude_code.safety_event</code> (2.1.307+) from CI ticks to a local sink, and count refusals per tick. Spec: <code>proposal/export-safety-events.md</code>. <span class="tag">draft</span></p>
+
+<h2>ELI5</h2>
+<div class="card">
+<p>The robot works alone at night. Sometimes a guard says "no, you can't use that tool" and the robot quietly gives up on that part. In the morning nobody knows why less got done. Now the guard can drop a ticket in a box each time it says no. We put a box next to the robot, then count the tickets.</p>
+<svg viewBox="0 0 640 200" role="img" aria-label="Robot asks to use a tool, guard says no and drops a ticket into a box, tickets get counted">
+  <rect class="box blu" x="10" y="60" width="120" height="70" rx="10"/><text x="70" y="92" text-anchor="middle">Robot</text><text class="small" x="70" y="112" text-anchor="middle">night tick</text>
+  <rect class="box acc" x="180" y="60" width="120" height="70" rx="10"/><text x="240" y="92" text-anchor="middle">Guard</text><text class="small" x="240" y="112" text-anchor="middle">says yes or no</text>
+  <rect class="box grn" x="350" y="60" width="120" height="70" rx="10"/><text x="410" y="92" text-anchor="middle">Ticket box</text><text class="small" x="410" y="112" text-anchor="middle">local sink</text>
+  <rect class="box" x="520" y="60" width="110" height="70" rx="10"/><text x="575" y="92" text-anchor="middle">Morning count</text><text class="small" x="575" y="112" text-anchor="middle">step summary</text>
+  <path class="flow" d="M130 95 H180"/><path class="flow" d="M300 95 H350"/><path class="flow" d="M470 95 H520"/>
+  <text class="stop" x="240" y="45" text-anchor="middle" style="fill:var(--no);font-weight:600">NO</text>
+  <g class="tok"><rect x="60" y="150" width="22" height="14" rx="3" fill="var(--a)"/></g>
+  <text class="small" x="320" y="190" text-anchor="middle">each "no" becomes one ticket; tickets are counted, never read aloud</text>
+</svg>
+</div>
+
+<h2>Architect</h2>
+<div class="card">
+<svg viewBox="0 0 700 330" role="img" aria-label="Workflow: sink starts, claude-code-action runs Claude Code with OTLP env, events post to the sink, report step writes counts">
+  <text x="10" y="20" style="font-weight:600">GitHub Actions runner</text>
+  <rect class="wire" x="5" y="30" width="690" height="290" rx="12"/>
+  <rect class="box grn" x="20" y="50" width="180" height="60" rx="8"/><text x="110" y="76" text-anchor="middle">otel-sink.mjs</text><text class="small" x="110" y="96" text-anchor="middle">127.0.0.1:4318 /v1/logs</text>
+  <rect class="box blu" x="250" y="50" width="200" height="110" rx="8"/><text x="350" y="74" text-anchor="middle">claude-code-action@v1</text>
+  <rect class="box acc" x="265" y="85" width="170" height="60" rx="6"/><text x="350" y="108" text-anchor="middle">Claude Code &gt;= 2.1.307</text><text class="small" x="350" y="128" text-anchor="middle">guard.mjs / --allowedTools</text>
+  <rect class="box" x="500" y="50" width="180" height="60" rx="8"/><text x="590" y="76" text-anchor="middle">otel-safety.jsonl</text><text class="small" x="590" y="96" text-anchor="middle">$RUNNER_TEMP</text>
+  <rect class="box" x="500" y="200" width="180" height="70" rx="8"/><text x="590" y="226" text-anchor="middle">safety-report.mjs</text><text class="small" x="590" y="246" text-anchor="middle">counts, if: always()</text>
+  <rect class="box" x="250" y="200" width="200" height="70" rx="8"/><text x="350" y="226" text-anchor="middle">Step summary + artifact</text><text class="small" x="350" y="246" text-anchor="middle">miserere: telemetry rows</text>
+  <path class="flow" d="M350 160 V180 H110 V110"/>
+  <text class="small" x="120" y="175">OTLP http/json: safety_event, tool_decision reject</text>
+  <path class="flow" d="M200 80 C 260 20, 440 20, 500 80"/>
+  <path class="flow" d="M590 110 V200"/><path class="flow" d="M500 235 H450"/>
+  <g transform="translate(20,290)"><rect class="tick" x="0" y="0" width="230" height="10" rx="4" fill="var(--a)" opacity=".7"/><text class="small" x="240" y="10">rejects per tick, by category and reason_code</text></g>
+</svg>
+<table>
+<tr><th>Env on the model step</th><th>Value</th></tr>
+<tr><td><code>CLAUDE_CODE_ENABLE_TELEMETRY</code></td><td><code>1</code></td></tr>
+<tr><td><code>OTEL_LOGS_EXPORTER</code></td><td><code>otlp</code></td></tr>
+<tr><td><code>OTEL_EXPORTER_OTLP_PROTOCOL</code></td><td><code>http/json</code> (no default; must be set)</td></tr>
+<tr><td><code>OTEL_EXPORTER_OTLP_LOGS_ENDPOINT</code></td><td><code>http://127.0.0.1:4318/v1/logs</code></td></tr>
+<tr><td><code>OTEL_LOGS_EXPORT_INTERVAL</code></td><td><code>1000</code> (default 5000 ms)</td></tr>
+<tr><td><code>OTEL_LOG_TOOL_DETAILS</code></td><td>unset (keeps commands out of events)</td></tr>
+</table>
+</div>
+
+<h2>What gets counted</h2>
+<div class="card">
+<table>
+<tr><th>Source</th><th>Event</th><th>Key fields</th></tr>
+<tr><td>guard.mjs deny (PreToolUse hook)</td><td><code>safety_event</code></td><td><code>category: hook</code>, <code>reason_code: hook:PreToolUse</code></td></tr>
+<tr><td>Deny/ask rule, built-in check</td><td><code>safety_event</code></td><td><code>permission_rule</code>, <code>safety_check</code> + <code>circuit_breaker</code></td></tr>
+<tr><td>Tool outside <code>--allowedTools</code> in <code>-p</code>, no prompt possible</td><td><code>tool_decision</code> only</td><td><code>decision: reject</code>, <code>source: config</code>, no safety_event</td></tr>
+</table>
+</div>
+
+<h2>Side wins</h2>
+<div class="card">
+<p><b>miserere:</b> tools missing from <code>_claude-skill.yml</code>'s grant become counted rejects per caller, instead of a quiet partial tick.</p>
+<p><b>nexus 55.6 (A4):</b> one <code>hook_probe</code> tick with a deliberately denied call. A <code>category: hook</code> event proves project hooks load under claude-code-action.</p>
+</div>
+
+<h2>Unverified</h2>
+<div class="card warn">
+<p>Whether claude-code-action passes step <code>env</code> to Claude (confidence 70). Fallback: the settings <code>env</code> block. Whether <code>@v1</code> ships Claude Code &gt;= 2.1.307. Whether the last batch flushes on exit. A one-dispatch spike with <code>OTEL_LOGS_EXPORTER=console</code> answers the first two.</p>
+</div>
+</main></body>
+</html>
