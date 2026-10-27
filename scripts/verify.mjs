@@ -1161,14 +1161,17 @@ function prFlowCheck(readFile = read, exists = (f) => fs.existsSync(path.join(RO
 // and every run of an old major warns that it targets it. Each entry
 // is the oldest major whose action.yml says `using: node24`
 // (checked against the action's repo); a sub-path such as
-// cache/restore counts as its action.
+// cache/restore counts as its action; a quoted uses: counts and a
+// commented line does not. pnpm/action-setup is held too: its v4
+// is Node 20.
 const NODE24_MAJORS = {
-  checkout: 5,
-  'setup-node': 5,
-  cache: 5,
-  'upload-artifact': 6,
-  'download-artifact': 7,
-  'create-github-app-token': 3,
+  'actions/checkout': 5,
+  'actions/setup-node': 5,
+  'actions/cache': 5,
+  'actions/upload-artifact': 6,
+  'actions/download-artifact': 7,
+  'actions/create-github-app-token': 3,
+  'pnpm/action-setup': 5,
 }
 function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.github/actions', 'templates/.github/workflows', 'templates/.github/actions']) {
   const failures = []
@@ -1178,8 +1181,9 @@ function nodeActionMajorsCheck(readFile = read, dirs = ['.github/workflows', '.g
     for (const file of walkFiles(abs).filter((f) => /\.ya?ml$/.test(f))) {
       const rel = normalize(path.relative(ROOT, file))
       readFile(rel).split(/\r?\n/).forEach((line, i) => {
-        const m = /\buses:\s*actions\/([a-z-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
-        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: actions/${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
+        if (/^\s*#/.test(line)) return
+        const m = /\buses:\s*["']?([\w.-]+\/[\w.-]+)(?:\/[\w./-]+)?@v(\d+)\b/.exec(line)
+        if (m && NODE24_MAJORS[m[1]] && Number(m[2]) < NODE24_MAJORS[m[1]]) failures.push(`${rel}:${i + 1}: ${m[1]}@v${m[2]} targets the deprecated Node 20; use v${NODE24_MAJORS[m[1]]} or later (Node 24)`)
       })
     }
   }
