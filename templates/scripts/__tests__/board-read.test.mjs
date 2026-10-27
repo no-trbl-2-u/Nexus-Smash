@@ -2,6 +2,7 @@
 // built with the codec and handed to main() through its seams, the cursor file lives in a temp folder, and nothing
 // touches git. board-run.test.mjs runs the CLI over a real claims branch. node:test, no deps.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -83,14 +84,42 @@ describe('the cursor per session, over the CLI', () => {
     assert.deepEqual(run(['snapshot'], later, root).out.split('\n').map((l) => l.split(' ')[0]), ['b6']);
     // another session starts from the top
     assert.equal(run(['snapshot'], later, root, { NEXUS_SESSION: 's2' }).out.split('\n').length, 6);
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, board.CURSOR_FILE), 'utf8')), { s1: 6, s2: 6 });
+    assert.deepEqual([board.readCursor(root, 's1'), board.readCursor(root, 's2')], [6, 6]);
   });
   it('--session names the cursor; an unreadable cursor file reads as nothing seen', () => {
     const root = tmp();
-    fs.mkdirSync(path.join(root, '.nexus'));
-    fs.writeFileSync(path.join(root, board.CURSOR_FILE), '{not json');
+    fs.mkdirSync(path.join(root, board.CURSOR_DIR), { recursive: true });
+    fs.writeFileSync(path.join(root, board.CURSOR_DIR, 'zed'), 'not a number');
     assert.equal(run(['snapshot', '--session', 'zed'], B, root).out.split('\n').length, 5);
-    assert.equal(board.readCursors(root).zed, 5);
+    assert.equal(board.readCursor(root, 'zed'), 5);
+  });
+  it('concurrent writers lose no cursor (one file per session)', async () => {
+    const root = tmp();
+    const mod = new URL('../board.mjs', import.meta.url).href;
+    const script = `import(${JSON.stringify(mod)}).then((b) => { for (let i = 0; i < 150; i++) b.writeCursor(process.argv[1], process.argv[2] + i, i + 1); })`;
+    const kids = ['a', 'b', 'c'].map((p) => spawn(process.execPath, ['-e', script, root, p], { stdio: 'ignore' }));
+    await Promise.all(kids.map((k) => new Promise((res) => k.on('exit', res))));
+    assert.equal(fs.readdirSync(path.join(root, board.CURSOR_DIR)).length, 450);
+    assert.equal(board.readCursor(root, 'c149'), 150);
+  });
+  it('without a session id nothing is persisted, everything prints, and it says to pass --session', () => {
+    const root = tmp();
+    const r = run(['snapshot'], B, root, {});
+    assert.equal(r.code, 0);
+    assert.equal(r.out.split('\n').length, 5);
+    assert.match(r.err, /no session id; pass --session/);
+    assert.equal(run(['snapshot'], B, root, {}).out.split('\n').length, 5);
+    assert.equal(fs.existsSync(path.join(root, board.CURSOR_DIR)), false);
+  });
+  it('CLAUDE_CODE_SESSION_ID counts as a session (its first 8)', () => {
+    const root = tmp();
+    run(['snapshot'], B, root, { CLAUDE_CODE_SESSION_ID: '12345678-aaaa-bbbb-cccc-1234567890ab' });
+    assert.equal(board.readCursor(root, '12345678'), 5);
+  });
+  it('--session needs a value that is not a flag, and one usable as a file name', () => {
+    assert.throws(() => run(['snapshot', '--session', '--json'], B, tmp()), /--session needs a session id/);
+    assert.throws(() => run(['snapshot', '--session'], B, tmp()), /--session needs a session id/);
+    assert.throws(() => run(['snapshot', '--session', '../x'], B, tmp()), /not a usable session id/);
   });
   it('--json carries the entries and the new cursor', () => {
     const j = JSON.parse(run(['snapshot', '--json'], B, tmp()).out);
@@ -108,7 +137,7 @@ describe('read', () => {
   it('does not move the cursor', () => {
     const root = tmp();
     run(['read', '--all'], B, root);
-    assert.deepEqual(board.readCursors(root), {});
+    assert.equal(fs.existsSync(path.join(root, board.CURSOR_DIR)), false);
   });
 });
 
@@ -181,11 +210,45 @@ describe('malformed grep expressions fail with a clear message', () => {
   it('through the CLI it throws the same message and touches no cursor', () => {
     const root = tmp();
     assert.throws(() => run(['grep', 'FAIL &'], B, root), /^Error: grep: expected a term/);
-    assert.deepEqual(board.readCursors(root), {});
+    assert.equal(fs.existsSync(path.join(root, board.CURSOR_DIR)), false);
+  });
+});
+
+describe('grep takes the whole expression', () => {
+  it('keeps --words that are not our flags, and -- ends the flags', () => {
+    const b = fold([note('FACT', 'run it with --force and --json')]);
+    assert.equal(run(['grep', '--force'], b, tmp()).out.split(' ')[0], 'b1');
+    assert.equal(run(['grep', '--', '--json'], b, tmp()).out.split(' ')[0], 'b1');
+    assert.equal(run(['grep', '--force', '&', 'FACT'], b, tmp()).out.split(' ')[0], 'b1');
+    assert.ok(Array.isArray(JSON.parse(run(['grep', '--json', 'FACT'], b, tmp()).out)));
+  });
+  it('caps nesting with a clear error, not a RangeError', () => {
+    const deep = (n) => '('.repeat(n) + 'a' + ')'.repeat(n);
+    assert.doesNotThrow(() => board.parseExpr(deep(20)));
+    assert.throws(() => board.parseExpr(deep(100000)), /^Error: grep: nesting deeper than 32/);
+  });
+});
+
+describe('terminal escapes in notes', () => {
+  const evil = fold([note('FACT', 'a\x1b[2Jb\x1b]0;pwned\x07c\x7fd\u009be', { detail: 'x\x1b[31mred\ttab\nline' })]);
+  const plain = (s) => !/[\x00-\x08\x0b-\x1f\x7f-\x9f]/.test(s);
+  it('are stripped from every text output, tabs and newlines kept', () => {
+    for (const argv of [['snapshot'], ['read'], ['grep', 'a'], ['unfold', 'b1']]) assert.ok(plain(run(argv, evil, tmp()).out), argv[0]);
+    assert.match(run(['unfold', 'b1'], evil, tmp()).out, /red\ttab\nline/);
+  });
+  it('JSON output stays valid and escaped', () => {
+    const out = run(['read', '--json'], evil, tmp()).out;
+    assert.ok(plain(out));
+    assert.match(out, /\\u001b/);
   });
 });
 
 describe('unfold', () => {
+  it('says which entry replaced a PATCH', () => {
+    const b = fold([note('PATCH', 'one'), note('PATCH', 'two')]);
+    assert.match(run(['unfold', 'b1'], b, tmp()).out, /replaced by b2/);
+    assert.doesNotMatch(run(['unfold', 'b2'], b, tmp()).out, /replaced by/);
+  });
   it('prints the line, who and when, and the detail in full', () => {
     const out = run(['unfold', 'b4'], B, tmp());
     assert.equal(out.code, 0);

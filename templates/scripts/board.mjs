@@ -14,19 +14,33 @@
 // term is a word or a "quoted phrase", matched without regard to case against an entry's type, chunk, author, session,
 // text and detail: `grep 'FAIL & (62.1 | 62.2)'`, `grep '"claims.json" & FAIL'`. A malformed expression is an error, never a guess.
 //
-// The cursor is the last entry id a session has seen, kept per session in .nexus/board-cursor.json at the primary
-// checkout (untracked, shared by its worktrees). It is a convenience: a cursor file that is missing or unreadable
-// reads as "nothing seen yet", and a snapshot then shows the whole board once.
+// The cursor is the last entry id a session has seen, one file per session, .nexus/board-cursor/<session>, at the
+// primary checkout (untracked, shared by its worktrees; written to a temp file and renamed, so two writers never lose
+// each other's). It is a convenience: a file that is missing or unreadable reads as "nothing seen yet", and a snapshot
+// then shows the whole board once. With no session id (no NEXUS_SESSION, no Claude Code session, no --session) there is
+// no one to keep a cursor for: snapshot prints everything, keeps nothing, and says to pass --session.
+// A note's text is data: control characters (terminal escapes) are stripped before anything prints.
 //
-// Environment: NEXUS_SESSION (this session's id; else the Claude Code session, as claims.mjs), NEXUS_CLAIMS_REMOTE.
+// Flags: --json, --all (read), --session <id>; `--` ends the flags, so grep can search for a word that starts with `--`.
+// Environment: NEXUS_SESSION (this session's id; else the Claude Code session's first 8 characters), NEXUS_CLAIMS_REMOTE.
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { claimsSession, fetchBoard, sessionId } from './claims.mjs';
+import { claimsSession, fetchBoard } from './claims.mjs';
 import { live, render } from './claims-codec.mjs';
 import { primaryRoot } from './owner.mjs';
 
-export const CURSOR_FILE = path.join('.nexus', 'board-cursor.json');
+export const CURSOR_DIR = path.join('.nexus', 'board-cursor');
+export const MAX_DEPTH = 32;
+const SESSION = /^[A-Za-z0-9][\w.~-]{0,63}$/;
+
+/** Text as it may print: control characters other than newline and tab (terminal escapes) removed. */
+export const clean = (s) => String(s).replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '');
+/** JSON.stringify's text, with the DEL and C1 controls it leaves raw written as escapes too. */
+export const safeJson = (v) => JSON.stringify(v, null, 2).replace(/[\x7f-\x9f]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+/** This session's id: NEXUS_SESSION, else the Claude Code session's first 8; '' when neither is set (a pid is no session). */
+export const sessionOf = (env) => env.NEXUS_SESSION || (env.CLAUDE_CODE_SESSION_ID ?? '').slice(0, 8);
 
 /** The number inside an entry id (`b12` is 12); 0 for anything else. */
 export const numOf = (id) => Number(/^b(\d+)$/.exec(String(id))?.[1]) || 0;
@@ -90,6 +104,7 @@ export function parseExpr(expr) {
   const toks = tokens(String(expr ?? ''));
   if (!toks.length) throw new Error('grep: give an expression, e.g. grep \'FAIL & (62.1 | 62.2)\'.');
   let p = 0;
+  let depth = 0;
   const peek = () => toks[p];
   const bad = (want) => {
     const got = peek();
@@ -119,7 +134,9 @@ export function parseExpr(expr) {
     }
     if (tok?.t === 'open') {
       p++;
+      if (++depth > MAX_DEPTH) throw new Error(`grep: nesting deeper than ${MAX_DEPTH} parentheses.`);
       const inner = or();
+      depth--;
       if (peek()?.t !== 'close') throw new Error(`grep: the "(" at column ${tok.at} is never closed.`);
       p++;
       return inner;
@@ -160,11 +177,13 @@ export function find(board, id) {
 }
 
 /** One entry in full: its line, who and when, how it links to others, and the detail (or a note that it has none). */
-export function unfold(e) {
+export function unfold(e, entries = []) {
+  const next = entries.find((x) => x.replaces === e.id);
   const links = [
     e.count > 1 ? `seen ${e.count} times` : '',
     e.chunks?.length ? `chunks ${e.chunks.join(', ')}` : '',
     e.replaces ? `replaces ${e.replaces}` : '',
+    next ? `replaced by ${next.id}` : '',
     e.invalidates ? `invalidates ${e.invalidates}` : '',
     e.invalidated ? 'invalidated by a later FAIL' : '',
   ].filter(Boolean);
@@ -173,23 +192,36 @@ export function unfold(e) {
 
 // --- the cursor file --------------------------------------------------------------------------------------------------
 
-/** The per-session cursors ({ <session>: <last id number seen> }); {} when the file is missing or unreadable. */
-export function readCursors(root) {
+/** A session's cursor (the last id number it has seen); 0 when its file is missing or unreadable. */
+export function readCursor(root, session) {
   try {
-    const v = JSON.parse(fs.readFileSync(path.join(root, CURSOR_FILE), 'utf8'));
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    const n = Number.parseInt(fs.readFileSync(path.join(root, CURSOR_DIR, session), 'utf8'), 10);
+    return n > 0 ? n : 0;
   } catch {
-    return {};
+    return 0;
   }
 }
 
-/** Move one session's cursor (never backwards); the other sessions' cursors stay. */
+/** Move one session's cursor (never backwards). One file per session, written to a temp file and renamed into place. */
 export function writeCursor(root, session, n) {
-  const all = readCursors(root);
-  all[session] = Math.max(Number(all[session]) || 0, n);
-  const file = path.join(root, CURSOR_FILE);
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(all, null, 2)}\n`);
+  if (!SESSION.test(session)) throw new Error(`board: "${session}" is not a usable session id.`);
+  const dir = path.join(root, CURSOR_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `.${session}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
+  fs.writeFileSync(tmp, `${Math.max(readCursor(root, session), n)}\n`);
+  // Windows refuses a rename onto a file another process has open for a moment: wait and try again.
+  for (let i = 0; ; i++) {
+    try {
+      fs.renameSync(tmp, path.join(dir, session));
+      return;
+    } catch (e) {
+      if (i >= 20) {
+        fs.rmSync(tmp, { force: true });
+        throw e;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 + i * 5);
+    }
+  }
 }
 
 // --- the CLI ----------------------------------------------------------------------------------------------------------
@@ -203,19 +235,31 @@ const USAGE = 'usage: board.mjs snapshot [--session <id>] | read [--all] | grep 
 export function main(argv, { cwd = process.cwd(), env = process.env, out = console.log, err = console.error, fetch = (c) => fetchBoard(c).board, root = primaryRoot } = {}) {
   const rest = [...argv];
   const cmd = rest.shift();
-  const si = rest.indexOf('--session');
-  const session = si >= 0 ? claimsSession(rest.splice(si, 2)[1] ?? '') : '';
-  const flags = new Set(rest.filter((a) => a.startsWith('--')));
-  const args = rest.filter((a) => !a.startsWith('--'));
+  // Our flags come before a `--`; everything else, and all that follows a `--`, is the command's arguments.
+  const dd = rest.indexOf('--');
+  const head = dd >= 0 ? rest.slice(0, dd) : rest;
+  const tail = dd >= 0 ? rest.slice(dd + 1) : [];
+  const si = head.indexOf('--session');
+  let session = '';
+  if (si >= 0) {
+    const v = head[si + 1];
+    if (!v || v.startsWith('--')) throw new Error('board: --session needs a session id.');
+    session = claimsSession(v);
+    head.splice(si, 2);
+  }
+  const flags = new Set(head.filter((a) => a === '--json' || a === '--all'));
+  const args = [...head.filter((a) => a !== '--json' && a !== '--all'), ...tail];
   const json = flags.has('--json');
-  const emit = (value, lines, empty) => out(json ? JSON.stringify(value, null, 2) : lines.length ? lines.join('\n') : empty);
+  const emit = (value, lines, empty) => out(json ? safeJson(value) : lines.length ? clean(lines.join('\n')) : empty);
   switch (cmd) {
     case 'snapshot': {
-      const me = session || sessionId(env);
-      const dir = root(cwd);
-      const s = snapshot(fetch(cwd), Number(readCursors(dir)[me]) || 0);
+      const me = session || sessionOf(env);
+      if (me && !SESSION.test(me)) throw new Error(`board: "${me}" is not a usable session id.`);
+      const dir = me ? root(cwd) : '';
+      const s = snapshot(fetch(cwd), me ? readCursor(dir, me) : 0);
       emit({ session: me, entries: s.entries, cursor: s.cursor }, s.entries.map(line), 'board: nothing new.');
-      writeCursor(dir, me, s.cursor);
+      if (me) writeCursor(dir, me, s.cursor);
+      else err('board: no session id; pass --session <id> (or set NEXUS_SESSION) to keep a cursor. Printed everything, kept none.');
       return 0;
     }
     case 'read': {
@@ -232,9 +276,10 @@ export function main(argv, { cwd = process.cwd(), env = process.env, out = conso
     }
     case 'unfold': {
       if (args.length !== 1) throw new Error('board: unfold needs one <id> (e.g. b12).');
-      const e = find(fetch(cwd), args[0]);
-      if (!e) throw new Error(`board: no entry ${args[0]}.`);
-      emit(e, [unfold(e)]);
+      const all = fetch(cwd);
+      const e = find(all, args[0]);
+      if (!e) throw new Error(`board: no entry ${clean(args[0])}.`);
+      emit(e, [unfold(e, all.entries)]);
       return 0;
     }
     default:

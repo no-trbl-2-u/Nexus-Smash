@@ -1,5 +1,5 @@
 // board.mjs end to end: the CLI reads the board off a real claims branch in a scratch clone. Snapshot prints what a
-// second writer added since this session's last one, FAIL first, and the cursor lands in .nexus/board-cursor.json of the
+// second writer added since this session's last one, FAIL first, and the cursor lands in .nexus/board-cursor/<session> of the
 // primary checkout (shared by its worktrees); grep and unfold read the same branch. Offline, but every case spawns git
 // and node (the opt-in `scripts-git` gate leg). node:test, no deps.
 import assert from 'node:assert/strict';
@@ -59,8 +59,8 @@ describe('board.mjs over a claims branch', () => {
 
     // another session has its own cursor and sees everything once
     assert.equal(board(clone, 'sess-b', 'snapshot').stdout.trim().split('\n').length, 4);
-    const cursors = JSON.parse(fs.readFileSync(path.join(clone, '.nexus', 'board-cursor.json'), 'utf8'));
-    assert.deepEqual(cursors, { 'sess-a': 4, 'sess-b': 4 });
+    const read = (n) => fs.readFileSync(path.join(clone, '.nexus', 'board-cursor', n), 'utf8').trim();
+    assert.deepEqual([read('sess-a'), read('sess-b')], ['4', '4']);
   });
 
   it('grep and unfold read the same branch; a bad expression exits 1 with the message', () => {
