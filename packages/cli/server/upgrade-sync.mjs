@@ -5,7 +5,8 @@
 // customised ones are three-way merged with `git merge-file`; a conflict goes to an assisted merge (a helper-model
 // session given base, theirs and ours that returns a merged file and a one-line reason per hunk it kept from ours),
 // shown as a diff marked `assisted` and kept only when the repo's gate is green with it, else the file stays ours and is
-// listed. New kit content (a path the kit did not hold at `ref:`) is listed and added; a knob the kit did not name at
+// listed. New kit content (a path the kit did not hold at `ref:`) is listed and added (a kit file the repo deleted
+// since stays deleted, `kept-deleted`); a knob the kit did not name at
 // `ref:` arrives at its conservative value (upgrade.mjs KNOBS). Lanes files and custom skills are never touched. The
 // lock's `ref:` and `version:` move to the kit commit this CLI was built from; with --write all of it is one commit,
 // `plan: sync to nexus <version>`, on `nexus/upgrade-<version>`. Base and theirs both get the kit's placeholders filled
@@ -155,6 +156,36 @@ export function movedLock(text, { version, ref }) {
   return t;
 }
 
+/** `text` (LF) in the line endings of `like`, the repo's copy: a CRLF file comes back CRLF, never rewritten whole. */
+export const eolOf = (like, text) => (/\r\n/.test(String(like ?? '')) ? lf(text).replace(/\n/g, '\r\n') : text);
+
+const linesOf = (t) => lf(t).split('\n').map((s) => s.trim()).filter(Boolean);
+/**
+ * Is an assisted merge's file a merge at all? It must keep at least `bound` of the non-blank lines of ours or of
+ * theirs; an empty or near-empty answer drops most of both, and the repo's gate may never read the file to notice.
+ */
+export function keepsEnough(text, ours, theirs, bound = 0.5) {
+  const got = new Set(linesOf(text));
+  if (!got.size) return false;
+  const share = (t) => { const l = linesOf(t); return l.length ? l.filter((x) => got.has(x)).length / l.length : 1; };
+  return share(ours) >= bound || share(theirs) >= bound;
+}
+
+/**
+ * Can --write commit in `dir`? Null, or why not: no git identity, or a sync branch that already holds commits other
+ * than an earlier sync's (someone's work, which `switch -C` would drop). An earlier sync's own branch is replaced.
+ */
+export function canCommit(dir, version) {
+  if (!gitIn(dir, ['var', 'GIT_AUTHOR_IDENT']).ok || !gitIn(dir, ['var', 'GIT_COMMITTER_IDENT']).ok) {
+    return 'no git identity for the sync commit: set user.name and user.email (git config user.name "<name>"; git config user.email "<email>") and run again';
+  }
+  const name = syncBranch(version);
+  if (!gitIn(dir, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).ok) return null;
+  const log = gitIn(dir, ['log', '--format=%s', `HEAD..refs/heads/${name}`]);
+  const foreign = log.ok ? log.out.split(/\r?\n/).filter(Boolean).filter((s) => !s.startsWith('plan: sync to nexus ')) : ['(unreadable)'];
+  return foreign.length ? `${name} already exists with commits that are not a sync (${foreign[0]}); merge or delete that branch, then run again` : null;
+}
+
 /**
  * The sync in `dir` (a temporary worktree of the repo's origin): { code, report }. `base` (tests) stands in for
  * openBase; `assist` is the assisted merge (null: a conflict stays ours, its diff listed); `gateOf` the repo's gate
@@ -168,6 +199,10 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
   if (!from) return { code: 0, report: { ...report, message: 'already on v2', why: 'plan/nexus.lock names no ref:, so there is no kit commit to merge from (add the ref it adopted, e.g. ref: v2.0.0)' } };
   const to = identityOf(kit);
   if (!to) return { code: 2, report: { ...report, error: 'this CLI cannot tell which kit commit it carries (no kit identity in the bundle)' } };
+  if (commitIt) {
+    const stop = canCommit(dir, to.version);
+    if (stop) return { code: 2, report: { ...report, error: stop } };
+  }
   const b = base || openBase(kit, from);
   if (b.error) return { code: 2, report: { ...report, error: b.error } };
   try {
@@ -186,6 +221,7 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
       if (raw == null) continue;
       const theirs = fill(lf(raw), fills);
       const ours = read(dir, f.repo);
+      const keepEol = (text) => eolOf(ours, text);
       const was = b.read(f.kit);
       if (was != null) baseText += `\n${was}`;
       if (f.kind === 'lane') {
@@ -194,10 +230,17 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
         continue;
       }
       const old = was == null ? null : fill(lf(was), fills);
+      if (ours == null && old != null) {
+        // The kit held it at ref: and the repo has none: the repo deleted it. It stays deleted.
+        const changed = old !== theirs;
+        report.files.push({ path: f.repo, status: 'kept-deleted', note: changed ? 'the repo deleted it; the kit has changed it since ref:' : 'the repo deleted it' });
+        if (changed) report.warnings.push(`${f.repo}: the repo deleted this kit file, and the kit changed it since ref:; restore it by hand if the change matters`);
+        continue;
+      }
       if (ours == null) {
         put(f.repo, theirs);
-        report.files.push({ path: f.repo, status: 'added', ...(old == null ? { note: 'new kit content' } : { note: 'missing from the repo' }) });
-        if (old == null) report.added.push({ path: f.repo, kind: f.kind });
+        report.files.push({ path: f.repo, status: 'added', note: 'new kit content' });
+        report.added.push({ path: f.repo, kind: f.kind });
         continue;
       }
       const mine = lf(ours);
@@ -207,14 +250,14 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
         report.warnings.push(`${f.repo}: the kit now ships a file at this path; the repo's own is kept (compare them by hand)`);
         continue;
       }
-      if (mine === old) { put(f.repo, theirs); report.files.push({ path: f.repo, status: 'replaced' }); continue; }
+      if (mine === old) { put(f.repo, keepEol(theirs)); report.files.push({ path: f.repo, status: 'replaced' }); continue; }
       if (old === theirs) { report.files.push({ path: f.repo, status: 'kept-custom', note: 'customised; the kit has not changed it since ref:' }); continue; }
       const m = mergeThree({ base: old, ours: mine, theirs });
       if (!m.conflicts) {
-        put(f.repo, m.text);
+        put(f.repo, keepEol(m.text));
         report.files.push({ path: f.repo, status: 'merged', note: 'customised: three-way merged, clean' });
         report.merges.push({ path: f.repo, kind: 'merged', diff: unifiedDiff(mine, m.text, f.repo, 'merged'), applied: true });
-      } else conflicts.push({ f, base: old, ours: mine, theirs, marked: m.text, n: m.conflicts });
+      } else conflicts.push({ f, base: old, ours: mine, raw: ours, theirs, marked: m.text, n: m.conflicts });
     }
 
     // Knobs the kit did not name at ref: arrive at their conservative values; the repo's own lines are kept.
@@ -242,12 +285,16 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
     for (const c of conflicts) {
       let r = null;
       if (assist) { try { r = await assist({ path: c.f.repo, base: c.base, ours: c.ours, theirs: c.theirs, marked: c.marked }); } catch (e) { report.warnings.push(`${c.f.repo}: the assisted merge failed: ${e.message}`); } }
-      if (r && typeof r.text === 'string' && !MARKERS.test(r.text)) {
-        const text = r.text.endsWith('\n') ? r.text : `${r.text}\n`;
+      const clean = r && typeof r.text === 'string' && !MARKERS.test(r.text);
+      // The gate may not read this file at all: an empty or gutted answer is refused here, not trusted.
+      const sane = clean && keepsEnough(r.text, c.ours, c.theirs);
+      if (clean && !sane) report.warnings.push(`${c.f.repo}: the assisted merge dropped most of both sides (an empty or near-empty file); refused, the file stays as ours`);
+      if (sane) {
+        const text = lf(r.text).endsWith('\n') ? lf(r.text) : `${lf(r.text)}\n`;
         tried.push({ c, text, reasons: r.reasons || [] });
-        write(dir, c.f.repo, text);
+        write(dir, c.f.repo, eolOf(c.raw, text));
       } else {
-        report.files.push({ path: c.f.repo, status: 'conflict (left as ours)', note: `${c.n} conflicting hunk${c.n === 1 ? '' : 's'}${assist ? '; the assisted merge returned no clean file' : '; no assisted merge (--no-assist)'}` });
+        report.files.push({ path: c.f.repo, status: 'conflict (left as ours)', note: `${c.n} conflicting hunk${c.n === 1 ? '' : 's'}${!assist ? '; no assisted merge (--no-assist)' : clean ? '; the assisted merge dropped most of both sides' : '; the assisted merge returned no clean file'}` });
         report.merges.push({ path: c.f.repo, kind: 'conflict', diff: unifiedDiff(c.ours, c.marked, c.f.repo, 'conflict'), applied: false });
       }
     }
@@ -257,7 +304,7 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
       report.gate = green ? g : report.gate;
       for (const t of tried) {
         if (green) touched.add(t.c.f.repo);
-        else write(dir, t.c.f.repo, t.c.ours);
+        else write(dir, t.c.f.repo, t.c.raw);
         report.files.push({ path: t.c.f.repo, status: green ? 'assisted' : 'assisted (left as ours)', note: green ? 'conflict resolved by the assisted merge; the gate is green with it' : 'the gate went red with the assisted merge, so the file stays as ours' });
         report.merges.push({ path: t.c.f.repo, kind: 'assisted', diff: unifiedDiff(t.c.ours, t.text, t.c.f.repo, 'assisted'), reasons: t.reasons, applied: green });
       }
@@ -267,11 +314,15 @@ export async function syncRepo({ dir, kit, base = null, write: commitIt = false,
 
     if (commitIt) {
       const name = syncBranch(to.version);
+      // -C is safe here: canCommit refused a branch holding anything but an earlier sync's commit.
       const sw = gitIn(dir, ['switch', '-q', '-C', name]);
       const add = sw.ok && gitIn(dir, ['add', '--', ...[...touched].sort()]);
       const counts = ['replaced', 'merged', 'assisted', 'added'].map((s) => [s, report.files.filter((f) => f.status === s).length]).filter(([, n]) => n);
       const body = `${counts.map(([s, n]) => `${n} ${s}`).join(', ') || 'the lock only'}; ref: ${from} -> ${to.ref}`;
-      const done = add && add.ok && gitIn(dir, ['commit', '-q', '-m', syncSubject(to.version), '-m', body]);
+      // The repo's own hooks stay out of the temporary worktree, as on the worktree add (the gate above ran instead).
+      const hooks = fs.mkdtempSync(path.join(os.tmpdir(), 'nexus-sync-hooks-'));
+      const done = add && add.ok && gitIn(dir, ['-c', `core.hooksPath=${hooks}`, 'commit', '-q', '-m', syncSubject(to.version), '-m', body]);
+      fs.rmSync(hooks, { recursive: true, force: true });
       if (!done || !done.ok) {
         report.error = `the sync commit failed: ${(done || add || sw).err || 'git refused'}`;
         return { code: 1, report: finish(report) };

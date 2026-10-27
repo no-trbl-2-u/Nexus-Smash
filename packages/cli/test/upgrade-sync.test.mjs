@@ -38,6 +38,9 @@ const THEIRS = {
   'skills/march.lanes.md': '# march lanes\n\n(none, revised seed)\n',
   'skills/fresh.md': '# fresh\n\nA skill the kit did not ship at v2.0.0.\n',
 };
+// gone.md: a kit file the repo deleted after adopting; the kit changed it since.
+BASE['skills/gone.md'] = '# gone\n\nThe kit\'s.\n';
+THEIRS['skills/gone.md'] = '# gone\n\nThe kit\'s, revised.\n';
 // The repo's copies: keep.md untouched, custom.md and clash.md customised, its own lanes and a custom skill.
 const OURS = {
   'skills/keep.md': BASE['skills/keep.md'],
@@ -46,7 +49,7 @@ const OURS = {
   'skills/march.lanes.md': '# march lanes\n\n## lane: snapshot\n\nOur weekly snapshot gate.\n',
   'skills/mine.md': '# mine\n\nA skill the kit never shipped.\n',
 };
-const LIST = ['skills/keep.md', 'skills/custom.md', 'skills/clash.md', 'skills/march.lanes.md', 'skills/fresh.md']
+const LIST = ['skills/keep.md', 'skills/custom.md', 'skills/clash.md', 'skills/march.lanes.md', 'skills/fresh.md', 'skills/gone.md']
   .map((r) => ({ kit: `templates/${r}`, repo: r, kind: r.endsWith('.lanes.md') ? 'lane' : 'skill' }));
 // The repo's own gate: red when a skill says BREAKS.
 const PLAN_CHECK = "import fs from 'node:fs';\nconst bad = fs.readdirSync('skills').filter((n) => fs.readFileSync('skills/' + n, 'utf8').includes('BREAKS'));\nif (bad.length) { console.error('BREAKS in ' + bad.join(', ')); process.exit(1); }\nconsole.log('plan-check ok');\n";
@@ -64,7 +67,7 @@ function kitRepo() {
 }
 
 /** A v2 repo on the kit at v2.0.0, pushed to a bare origin, cloned locally. */
-function v2Repo({ ref = 'v2.0.0' } = {}) {
+function v2Repo({ ref = 'v2.0.0', extra = null } = {}) {
   const bare = tmp('nexus-sync-origin-');
   git(bare, 'init', '-q', '--bare', '-b', 'main');
   const seed = tmp('nexus-sync-seed-');
@@ -74,6 +77,7 @@ function v2Repo({ ref = 'v2.0.0' } = {}) {
   put(seed, 'plan/nexus.lock', `kit: nexus\nversion: 2.0.0\nref: ${ref}\nshape: chunks\nadopted: 2026-10-20\n`);
   put(seed, 'plan/bearings.md', '# Bearings\n\n- Promote: aged\n');
   put(seed, 'scripts/plan-check.mjs', PLAN_CHECK);
+  if (extra) extra(seed);
   const sha = commit(seed, 'v2 repo');
   git(seed, 'push', '-q', 'origin', 'main');
   const local = tmp('nexus-sync-local-');
@@ -205,7 +209,7 @@ test('--write: one `plan: sync to nexus <version>` commit on its branch, the loc
 test('an assisted merge that turns the gate red stays as ours and is listed; with no helper the conflict diff is listed', async () => {
   const k = kitRepo();
   const r = v2Repo();
-  const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist('# clash\n\nBREAKS\n'), write: true, today: '2026-10-27' });
+  const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist('# clash\n\nBREAKS\n\nend\n'), write: true, today: '2026-10-27' });
   assert.equal(code, 0, JSON.stringify(report, null, 2));
   assert.equal(statusOf(report)['skills/clash.md'], 'assisted (left as ours)');
   const m = report.merges.find((x) => x.path === 'skills/clash.md');
@@ -269,4 +273,100 @@ test('--write on a v1 repo is refused (exit 2); the helper model\'s answer is pa
   assert.equal(await bad({ path: 'x', base: '', ours: '', theirs: '' }), null);
   const err = modelAssist({ runOnce: async () => ({ is_error: true, result: 'boom' }) });
   assert.equal(await err({ path: 'x', base: '', ours: '', theirs: '' }), null);
+});
+
+// Review findings on PR #10, each red first.
+
+test('a kit file the repo deleted after ref: stays deleted and is listed, with a warning when the kit changed it', async () => {
+  const k = kitRepo();
+  const r = v2Repo();
+  const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+  assert.equal(code, 0, JSON.stringify(report, null, 2));
+  assert.equal(statusOf(report)['skills/gone.md'], 'kept-deleted');
+  assert.ok(!report.added.some((a) => a.path === 'skills/gone.md'), 'not new kit content');
+  assert.ok(report.warnings.some((w) => /skills\/gone\.md: .*deleted.*the kit changed it/.test(w)), report.warnings.join('\n'));
+  assert.throws(() => git(r.local, 'show', `${syncBranch('2.1.0')}:skills/gone.md`), 'not resurrected');
+});
+
+test('the sync commit runs no repo hook; an existing branch with work on it is refused, a previous sync\'s branch is replaced', async () => {
+  const k = kitRepo();
+  const r = v2Repo();
+  const hook = path.join(r.local, '.git', 'hooks', 'pre-commit');
+  fs.writeFileSync(hook, '#!/bin/sh\necho hook ran >&2\nexit 1\n');
+  fs.chmodSync(hook, 0o755);
+  const first = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+  assert.equal(first.code, 0, JSON.stringify(first.report.error || first.report.gate));
+  assert.ok(first.report.commit, 'committed despite a failing repo hook');
+  // A rerun replaces its own earlier result (only sync commits on the branch).
+  const again = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+  assert.equal(again.code, 0, again.report.error);
+  const branch = syncBranch('2.1.0');
+  assert.equal(git(r.local, 'log', '--format=%s', `origin/main..${branch}`), syncSubject('2.1.0'));
+  // Someone's own commit on the branch: refused, the branch kept as it was.
+  fs.rmSync(hook);
+  const wt = tmp('nexus-sync-own-');
+  fs.rmSync(wt, { recursive: true, force: true });
+  git(r.local, 'worktree', 'add', '-q', wt, branch);
+  put(wt, 'notes.md', 'mine\n');
+  git(wt, 'add', '-A');
+  git(wt, 'commit', '-q', '-m', 'docs: my own note');
+  const tip = git(r.local, 'rev-parse', branch);
+  git(r.local, 'worktree', 'remove', '--force', wt);
+  const refused = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+  assert.equal(refused.code, 2);
+  assert.match(refused.report.error, /nexus\/upgrade-2\.1\.0 already exists with commits that are not a sync/);
+  assert.equal(git(r.local, 'rev-parse', branch), tip, 'the branch is untouched');
+  assert.equal(git(r.local, 'worktree', 'list').split('\n').length, 1);
+});
+
+test('an empty or degenerate assisted merge is rejected: the file stays ours, with a warning', async () => {
+  const k = kitRepo();
+  for (const text of ['', 'x\n']) {
+    const r = v2Repo();
+    const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(text), write: true, today: '2026-10-27' });
+    assert.equal(code, 0, JSON.stringify(report.error));
+    assert.equal(statusOf(report)['skills/clash.md'], 'conflict (left as ours)', JSON.stringify(text));
+    assert.ok(report.warnings.some((w) => /skills\/clash\.md: the assisted merge dropped most of both sides/.test(w)), report.warnings.join('\n'));
+    assert.equal(`${git(r.local, 'show', `${syncBranch('2.1.0')}:skills/clash.md`)}\n`, OURS['skills/clash.md']);
+  }
+});
+
+test('placeholders fill literally (a $& in a name stays); a CRLF file comes back CRLF', async () => {
+  const { fill } = await import('../server/workflow-merge.mjs');
+  assert.equal(fill('<PROJECT> <PACKAGE_MANAGER> <DEFAULT_BRANCH>', { project: 'a$&b$$', pm: 'n$1', branch: 'm$`' }), 'a$&b$$ n$1 m$`');
+  const k = kitRepo();
+  const r = v2Repo({ extra: (seed) => {
+    put(seed, 'skills/keep.md', OURS['skills/keep.md'].replace(/\n/g, '\r\n'));
+    put(seed, 'skills/custom.md', OURS['skills/custom.md'].replace(/\n/g, '\r\n'));
+  } });
+  const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+  assert.equal(code, 0, JSON.stringify(report.error));
+  const st = statusOf(report);
+  assert.equal(st['skills/keep.md'], 'replaced', 'CRLF is not a customisation');
+  assert.equal(st['skills/custom.md'], 'merged');
+  const raw = (rel) => execFileSync('git', ['show', `${syncBranch('2.1.0')}:${rel}`], { cwd: r.local, encoding: 'utf8' });
+  assert.equal(raw('skills/keep.md'), THEIRS['skills/keep.md'].replace(/\n/g, '\r\n'));
+  assert.equal(raw('skills/custom.md'), '# custom\r\n\r\nkit para one, revised\r\n\r\nkit para two\r\n\r\nour own para three\r\n');
+});
+
+test('no git identity: the sync says so before any work, instead of a bare commit failure', async () => {
+  const k = kitRepo();
+  const r = v2Repo();
+  git(r.local, 'config', '--unset', 'user.name');
+  git(r.local, 'config', '--unset', 'user.email');
+  git(r.local, 'config', 'user.useConfigOnly', 'true');
+  const empty = path.join(tmp('nexus-sync-cfg-'), 'gitconfig');
+  fs.writeFileSync(empty, '');
+  const keys = ['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL', 'EMAIL'];
+  const saved = Object.fromEntries(keys.map((x) => [x, process.env[x]]));
+  for (const x of keys) delete process.env[x];
+  process.env.GIT_CONFIG_GLOBAL = empty;
+  process.env.GIT_CONFIG_NOSYSTEM = '1';
+  try {
+    const { code, report } = await upgrade({ repo: r.local, kit: k.kit, assist: stubAssist(), write: true, today: '2026-10-27' });
+    assert.equal(code, 2);
+    assert.match(report.error, /no git identity.*user\.name.*user\.email/);
+  } finally {
+    for (const x of keys) { if (saved[x] == null) delete process.env[x]; else process.env[x] = saved[x]; }
+  }
 });
