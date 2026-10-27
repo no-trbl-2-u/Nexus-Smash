@@ -212,6 +212,10 @@ describe('--get (the cadence step falls back to the dial)', () => {
     assert.deepEqual(run(bearings('Improve: gentle'), ['--get', 'cadence', '--if-set']).out, ['steady']);
     assert.deepEqual(run(bearings('Support: fix-all'), ['--get', 'support', '--if-set']).out, ['fix-all']);
   });
+  it('--line is the one-line digest form: the dial, then each knob not at its dial value', () => {
+    assert.deepEqual(run(bearings('Improve: bold', 'Promote: owner'), ['--line'], { NEXUS_CADENCE: 'calm' }).out, ['improve bold; promote owner (override); cadence calm (var)']);
+    assert.deepEqual(run(bearings(), ['--line']).out, ['improve gentle (absent: gentle)']);
+  });
   it('an unknown knob exits 2', () => {
     const r = run(bearings(), ['--get', 'nope']);
     assert.equal(r.code, 2);
@@ -263,5 +267,38 @@ describe('review findings (3 to 8b)', () => {
     const r = resolve(sec('Improve: bold', 'Promote: autonomous'));
     assert.deepEqual([get(r, 'promote').value, get(r, 'promote').source], ['autonomous', 'override']);
     assert.deepEqual(r.warnings, []);
+  });
+});
+
+// A2 (spec 59.2): the skills that read expansion knobs read them through the resolver, never from bearings lines.
+// The pattern is the old phrasing: a backticked knob line (`Support: fix-small`, `loop: on`, `Promote:`) or the
+// `## Generators` heading, which a skill only writes when it greps bearings for the knob. A skill describes a value
+// as "the `support` knob reads `fix-small`" and fetches it with `node scripts/plan/improve.mjs`.
+describe('the named skills read knobs through the resolver (A2)', () => {
+  const STALE = [/`(?:Support|Promote|stall_action|Research|UI cadence)(?::|: [^`\n]*)`/, /`loop: [^`\n]*`/, /## Generators/];
+  const READERS = {
+    'skills': ['march', 'triage', 'expand', 'iterate', 'digest'],
+    'templates/skills': ['march', 'triage', 'expand', 'iterate', 'critique', 'digest'],
+  };
+  const stale = (text) => STALE.filter((re) => re.test(text.replace(/\s+/g, ' '))).map(String);
+
+  it('the check catches the old phrasings', () => {
+    for (const old of ['else `Support:` in `plan/bearings.md`', 'Under `Promote: aged` (or', 'Runs when bearings says `loop: on`', '`stall_action: promote` under', 'a `## Generators` line', 'with `UI cadence: critique` or']) {
+      assert.ok(stale(old).length, old);
+    }
+    for (const fine of ['the `support` knob reads `fix-small`', 'a `loop:do` label and `loop:veto`', 'the `Improve:` dial', '`UI: none` browses nothing']) assert.deepEqual(stale(fine), [], fine);
+  });
+  for (const [dir, names] of Object.entries(READERS)) {
+    for (const name of names) {
+      const rel = `${dir}/${name}.md`;
+      const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+      it(`${rel} fetches knobs with improve.mjs and greps none from bearings`, () => {
+        assert.match(text, /scripts\/plan\/improve\.mjs/, `${rel} never names the resolver`);
+        assert.deepEqual(stale(text), [], `${rel} reads a knob line from bearings itself`);
+      });
+    }
+  }
+  it('nexus\'s own critique reads no dial knob (its GUI pass is not cadence-gated)', () => {
+    assert.deepEqual(stale(fs.readFileSync(path.join(ROOT, 'skills/critique.md'), 'utf8')), []);
   });
 });

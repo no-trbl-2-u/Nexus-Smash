@@ -8,6 +8,7 @@
 // holds the named skills to it).
 //
 //   node scripts/plan/improve.mjs [--json] [--root <dir>]     # one line per knob: <knob> <value> (dial|override|var)
+//   node scripts/plan/improve.mjs --line                      # the digest's one line: improve bold; promote owner (override)
 //   node scripts/plan/improve.mjs --get <knob> [--if-set]     # the bare value; --if-set prints nothing when only the
 //                                                             # absent dial gave it (a workflow falling back to the dial)
 //
@@ -163,6 +164,11 @@ export function resolve(bearings = '', env = {}) {
   return { dial: d.position, set: d.set, knobs: out, warnings };
 }
 
+/** The digest's line: `improve <dial>` then each knob that is not at its dial value, `<knob> <value> (override|var)`. */
+export function summary(r) {
+  return ['improve ' + r.dial + (r.set ? '' : ' (absent: gentle)'), ...r.knobs.filter((k) => k.source !== 'dial').map((k) => `${k.knob} ${k.value} (${k.source})`)].join('; ');
+}
+
 /** The one-line form of a resolution: `<knob> <value> (dial|override|var)` per knob. */
 export function lines(r) {
   return r.knobs.map((k) => `${k.knob} ${k.value} (${k.source})`);
@@ -181,7 +187,8 @@ export function main(argv = process.argv.slice(2), { root, env = process.env, lo
     if (!(argv.includes('--if-set') && k.source === 'dial' && !r.set)) log(k.value);
     return 0;
   }
-  if (argv.includes('--json')) log(JSON.stringify(r, null, 2));
+  if (argv.includes('--line')) log(summary(r));
+  else if (argv.includes('--json')) log(JSON.stringify(r, null, 2));
   else { log(`improve ${r.dial}${r.set ? '' : ' (absent: gentle)'}`); for (const l of lines(r)) log(l); }
   for (const w of r.warnings) err(`warn: ${w}`);
   return 0;

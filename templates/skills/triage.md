@@ -146,9 +146,10 @@ For each issue, decide:
 
 ### Step 2a — Support: fix now or Asap
 
-How hard the loop works an issue is the Support level: the
-repo variable `NEXUS_SUPPORT` when the tick's environment
-carries it, else `Support:` in `plan/bearings.md`, else
+How hard the loop works an issue is the Support level (`node
+scripts/plan/improve.mjs --get support`): the repo variable
+`NEXUS_SUPPORT` when the tick's environment carries it, else
+the bearings line, else the improvement dial, else
 `triage-only` (everything below routes as it always has).
 
 ```bash

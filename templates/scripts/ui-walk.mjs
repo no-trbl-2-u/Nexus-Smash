@@ -30,6 +30,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolve as resolveKnobs } from './plan/improve.mjs';
 
 export const VIEWPORTS = Object.freeze({ desktop: { width: 1280, height: 800 }, mobile: { width: 390, height: 844 } });
 export const DEFAULT_ROUTES = Object.freeze(['/']);
@@ -133,7 +134,7 @@ const knobLine = (text, name) => {
  * The UI knobs from plan/bearings.md's text:
  *   **UI:** none | url <base> | dev "<cmd>" <port>     (absent: none)
  *   **UI routes:** `/`, `/pricing`                     (absent: /)
- *   **UI cadence:** critique | iterate | both          (absent: critique)
+ *   **UI cadence:** none | critique | iterate | both   (absent: the Improve dial's ui row when the dial is set, else critique)
  *   **UI magic:** keep | open                          (absent: keep)
  * -> { mode, base, cmd, port, routes, cadence, magic, walks: { critique, iterate }, problems[] }
  */
@@ -159,8 +160,12 @@ export function readUiKnobs(text) {
   const cadence = knobLine(t, 'UI cadence');
   if (cadence !== null) {
     const v = unquote(cadence).toLowerCase();
-    if (['critique', 'iterate', 'both'].includes(v)) k.cadence = v;
-    else problems.push(`UI cadence: takes critique, iterate or both, not "${v}"`);
+    if (['none', 'critique', 'iterate', 'both'].includes(v)) k.cadence = v;
+    else problems.push(`UI cadence: takes none, critique, iterate or both, not "${v}"`);
+  } else {
+    // No UI cadence line: the Improve dial (scripts/plan/improve.mjs) sets it once the repo has set a dial.
+    const r = resolveKnobs(t, {});
+    if (r.set) k.cadence = r.knobs.find((x) => x.knob === 'ui').value;
   }
   const magic = knobLine(t, 'UI magic');
   if (magic !== null) {
@@ -169,7 +174,7 @@ export function readUiKnobs(text) {
     else problems.push(`UI magic: takes keep or open, not "${v}"`);
   }
   const on = k.mode === 'url';
-  k.walks = { critique: on && k.cadence !== 'iterate', iterate: on && k.cadence !== 'critique' };
+  k.walks = { critique: on && ['critique', 'both'].includes(k.cadence), iterate: on && ['iterate', 'both'].includes(k.cadence) };
   k.problems = problems;
   return k;
 }
