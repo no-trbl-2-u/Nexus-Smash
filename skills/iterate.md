@@ -82,7 +82,9 @@ lane lock and a Held line each carry `since: <date> · until:
 ## 3a. Dimension H: the GUI
 
 A full sweep walks the demo screens of the
-`UI audit: demo <scenarios>` line in `plan/bearings.md`:
+`UI audit: demo <scenarios>` line in `plan/bearings.md`
+(only when `node scripts/plan/improve.mjs --get ui` reads
+`iterate` or `both`; nexus runs bold, so every sweep):
 `npm --prefix packages/cli run walk -- --scenarios
 <scenarios>` (a built `dist/` first: `npm --prefix
 packages/cli run build`). A walk under 24 h old in
@@ -121,8 +123,9 @@ the commit body says why.
 
 ## 3b. Dimension I: the loop
 
-Runs when `plan/bearings.md` says `loop: on` (a missing line
-reads `off`; posture `strict` reads `off` whatever it says).
+Runs when `node scripts/plan/improve.mjs --get loop` says
+`on` (an absent dial and line read `off`; posture `strict`
+reads `off` whatever it says).
 `node scripts/plan/loop-rows.mjs status` prints both that and
 whether an I row may ship today.
 
@@ -140,7 +143,7 @@ whether an I row may ship today.
   `NEXUS_IDLE_WAKE_EVERY`, `NEXUS_HEARTBEAT_HOURS`,
   `NEXUS_DAILY_CEILING`, `NEXUS_SUPPORT`) or a backticked
   `plan/bearings.md` line (`stall_action`, `Motion floor`, a
-  `## Generators` line, ...).
+  generators list, ...).
 - **Ease caps at 6**, so tuning never crowds out real work.
 - **A YAML tuning is asked, never made:** `### [I, <score>]
   [needs-user-call] <line>`, its `next` names the file, plus

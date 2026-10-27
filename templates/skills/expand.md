@@ -100,7 +100,10 @@ Three settings:
   `bearings.md` Hard Rules** so the user knows.
 
 The same section holds the aged-promotion knobs (Step 4b), one
-`Key: value` line each; a missing key takes the default:
+`Key: value` line each. The `Improve:` dial sets each knob's
+default and a line overrides it, so read `promote` through
+`node scripts/plan/improve.mjs --get promote`, not from this
+section:
 
 | Key | Values | Default |
 |---|---|---|
@@ -288,11 +291,11 @@ body that this was autonomous (not via oversight).
 
 ### Step 4b — Aged promotion (the silt valve)
 
-A queue nobody promotes silts up. Under `Promote: aged` (or
-`autonomous`) in `bearings.md` (§3; no key reads `owner`, and
-this step does nothing), the pass ends by promoting at most
-one aged candidate, behind a window in which the owner can say
-no:
+A queue nobody promotes silts up. When
+`node scripts/plan/improve.mjs --get promote` reads `aged` (or
+`autonomous`; `owner`, the default, does nothing here), the pass
+ends by promoting at most one aged candidate, behind a window in
+which the owner can say no:
 
 1. `node scripts/plan/promote.mjs pick`. It prints `pick …`
    for the best Pending row scoring ≥ `promote_floor` that is

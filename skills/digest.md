@@ -73,35 +73,38 @@ Never dispatched by `/march` — it is its own loop shape (see
    already reads for the oldest-pending age — no script
    change).
 3. **Write `plan/DIGEST.md`** — overwrite entirely; it is a
-   snapshot, not a ledger. Sections, in order: `Headline`
-   (one sentence), `While you were out` (pulse table: tick,
-   verb, outcome — no-ops included), `Shipped`, `Queues now`
-   (the candidates line grows the >21-day count alongside the
+   snapshot, not a ledger. Sections, in order: `Headline` (one
+   sentence), `While you were out` (pulse table: tick, verb,
+   outcome — no-ops included), `Shipped`, `Queues now` (the
+   candidates line grows the >21-day count alongside the
    existing pending-count and oldest-age numbers, e.g. "17
-   pending (6 >21d), oldest 58d", then the Support line as
-   is), `Unreleased CLI fixes`
-   (`unreleased.mjs`'s output as is: the count since the tag
-   and one `<sha> <subject>` line each, so the owner can tag
+   pending (6 >21d), oldest 58d", then the Support line as is,
+   then the Improve line
+   (`node scripts/plan/improve.mjs --line`, e.g. "improve bold;
+   promote owner (override)")), `Unreleased CLI fixes`
+   (`unreleased.mjs`'s output as is: the count since the tag and
+   one `<sha> <subject>` line each, so the owner can tag
    `cli-v*`; "none since cli-v<x>" when the tag is current),
    `Needs you` (each `escalate #N` line first, then blocked
-   rows, needs-user issues, `[needs-user-call]`s, plus the silt line
-   "auto-promoted <NN> <title> (veto until <date>), Y awaiting"
-   — each spec `node scripts/plan/promote.mjs sweep` shows in
-   its veto window, or "auto-promoted none" — whenever any
-   auto-promotion is in its window, ≥5 candidates are pending
-   >21 days, or the oldest pending candidate exceeds 45 days
-   (nexus runs `Promote: aged`; with `owner` the line reads
-   "oversight needed: candidate queue silting (N pending >21d,
-   oldest Xd)"), one `cut <date> [score X] <title>` line per
-   candidate the Pending cap cut since the last digest (`node
-   scripts/plan/promote.mjs cuts --since <its date>`; `none`
-   adds no line), a `motion stalled: <the pulse's shipped
-   line>` line whenever `--motion` reads `stalled`, and each
-   `rotate <NAME>` line of `node scripts/secrets.mjs
-   audit`, a secret last set over 90
+   rows, needs-user issues, `[needs-user-call]`s, plus the silt
+   line "auto-promoted <NN> <title> (veto until <date>), Y
+   awaiting" — each spec `node scripts/plan/promote.mjs sweep`
+   shows in its veto window, or "auto-promoted none" — whenever
+   any auto-promotion is in its window, ≥5 candidates are
+   pending >21 days, or the oldest pending candidate exceeds 45
+   days (nexus's `promote` knob reads `aged`; with `owner` the
+   line reads "oversight needed: candidate queue silting (N
+   pending >21d, oldest Xd)"), one
+   `cut <date> [score X] <title>` line per candidate the Pending
+   cap cut since the last digest
+   (`node scripts/plan/promote.mjs cuts --since <its date>`;
+   `none` adds no line), a
+   `motion stalled: <the pulse's shipped line>` line whenever
+   `--motion` reads `stalled`, and each `rotate <NAME>` line of
+   `node scripts/secrets.mjs audit`, a secret last set over 90
    days ago; the log is local, so a cloud run skips it),
-   `Today's intent` (next ready chunk + top audit
-   finding), `Tuning proposals` (see step 4, or "none").
+   `Today's intent` (next ready chunk + top audit finding),
+   `Tuning proposals` (see step 4, or "none").
 4. **Meta-loop, within rails:** if the pulse shows a mistuned
    gate (critique gate never opening, ceiling hibernating
    productive days, a starved queue), file the tuning as a
@@ -147,6 +150,7 @@ gh run list --workflow march -L 20   # the invisible no-ops
 node scripts/pulse.mjs               # local queue/plan numbers
 node scripts/plan/unreleased.mjs     # packages/cli commits since the last cli-v* tag
 node scripts/plan/support.mjs digest # the Support line + needs-user escalations
+node scripts/plan/improve.mjs --line # the Improve line: the dial and its overrides
 node scripts/verify.mjs
 git commit -m "digest: <YYYY-MM-DD>"   # then land per owner mode (next/land.md §6)
 ```

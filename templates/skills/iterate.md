@@ -122,10 +122,11 @@ entries. Coverage gaps from cross-grep.
 
 #### H. UI (the scripted walk)
 
-Runs only when `plan/bearings.md` says `UI: url <base>` and
-`UI cadence:` is `iterate` or `both`
-(`node scripts/ui-walk.mjs --knobs` prints `walks.iterate`).
-`UI: none`, the default, browses nothing and H is skipped.
+Runs only when `node scripts/ui-walk.mjs --knobs` prints
+`walks.iterate` true: `plan/bearings.md` names a `UI: url
+<base>` and the `ui` knob (`node scripts/plan/improve.mjs
+--get ui`) reads `iterate` or `both`. `UI: none`, the default,
+browses nothing and H is skipped.
 
 - **Walk:** `node scripts/ui-walk.mjs --json` (foreground):
   each `UI routes:` path at desktop and mobile, into
@@ -159,9 +160,10 @@ Runs only when `plan/bearings.md` says `UI: url <base>` and
 
 #### I. Loop (how the loop itself runs)
 
-Runs when `plan/bearings.md` says `loop: on` (the default for a
-new adoption; a missing line reads `off`, as on an upgrade, and
-posture `strict` reads `off` whatever it says). `node
+Runs when `node scripts/plan/improve.mjs --get loop` says `on`
+(the default for a new adoption; an absent dial and line read
+`off`, as on an upgrade, and posture `strict` reads `off`
+whatever it says). `node
 scripts/plan/loop-rows.mjs status` prints that, and whether an
 I row may ship today.
 
@@ -180,7 +182,7 @@ I row may ship today.
   `NEXUS_IDLE_WAKE_EVERY`, `NEXUS_HEARTBEAT_HOURS`,
   `NEXUS_DAILY_CEILING`, `NEXUS_SUPPORT`) or a backticked
   `plan/bearings.md` line (`stall_action`, `Motion floor`, a
-  `## Generators` line, ...).
+  generators list, ...).
 - **Ease caps at 6**, so tuning never crowds out real work.
 - **A YAML tuning is asked, never made:** `### [I, <score>]
   [needs-user-call] <line>`, its `next` names the file, plus
