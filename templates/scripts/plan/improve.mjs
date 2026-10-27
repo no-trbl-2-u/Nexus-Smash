@@ -43,26 +43,77 @@ export const TABLE = Object.freeze([
     values: { off: 'calm', gentle: 'steady', steady: 'steady', bold: 'eager' } },
 ]);
 
-const strip = (text) => String(text ?? '').replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '');
-const lineRe = (key) => new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?[*\`]*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[*\`]*[ \\t]*:[*\`]*[ \\t]*[*\`]*([^\\s*\`]+)`, 'mi');
+const esc = (key) => key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/** The dial position from bearings text: { position, set, warnings }. Absent or unreadable reads as `gentle`. */
+/**
+ * Bearings text with what is not prose removed: a BOM, HTML comments, fenced (``` or ~~~) code blocks, and indented
+ * code blocks (four spaces or a tab after a blank line, unless the text above is a list item's continuation).
+ */
+function strip(text) {
+  const lines = String(text ?? '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '').split('\n');
+  const out = [];
+  let fence = null;
+  let prevBlank = true;
+  let inList = false;
+  let inCode = false;
+  for (const l of lines) {
+    const f = /^ {0,3}(`{3,}|~{3,})/.exec(l);
+    if (fence) {
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null;
+      out.push('');
+      continue;
+    }
+    if (f) { fence = f[1]; out.push(''); continue; }
+    const blank = !l.trim();
+    if (!blank && /^( {4}|\t)/.test(l) && ((prevBlank && !inList) || inCode)) { inCode = true; out.push(''); prevBlank = false; continue; }
+    inCode = false;
+    if (!blank) inList = /^\s*(?:[-*+]|\d+[.)])\s/.test(l) || (inList && /^\s/.test(l));
+    prevBlank = blank;
+    out.push(l);
+  }
+  return out.join('\n');
+}
+
+/** A `## <name>` section of already-stripped text, up to the next heading of level 1 to 3: { body, rest } or null. */
+function section(text, name) {
+  const lines = text.split('\n');
+  const at = lines.findIndex((l) => new RegExp(`^##\\s+${esc(name)}\\b.*$`).test(l));
+  if (at < 0) return null;
+  const end = lines.findIndex((l, i) => i > at && /^#{1,3}\s/.test(l));
+  const stop = end < 0 ? lines.length : end;
+  return { body: lines.slice(at + 1, stop).join('\n'), rest: [...lines.slice(0, at), ...lines.slice(stop)].join('\n') };
+}
+
+/** Every `Key: value` line of the text: the value is the whole rest of the line, less trailing punctuation and a # comment. */
+function values(text, key) {
+  const re = new RegExp(`^[ \\t]*(?:[-*][ \\t]+)?[*\`]*${esc(key)}[*\`]*[ \\t]*:[*\`]*[ \\t]*[*\`]*([\\w-]+)[*\`]*[ \\t]*[.,;]*[ \\t]*(?:#.*)?$`, 'gmi');
+  return [...text.matchAll(re)].map((m) => m[1]);
+}
+
+/**
+ * The dial position from bearings text: { position, set, warnings }. Only a line inside `## Plan expansion posture`
+ * counts (one outside is warned about and ignored); the first of several wins, with a warning. Absent or unreadable
+ * reads as `gentle`.
+ */
 export function dial(bearings = '') {
-  const m = lineRe('Improve').exec(strip(bearings));
-  if (!m) return { position: DEFAULT_POSITION, set: false, warnings: [] };
-  const v = m[1].toLowerCase();
-  if (POSITIONS.includes(v)) return { position: v, set: true, warnings: [] };
-  return { position: DEFAULT_POSITION, set: true, warnings: [`Improve: ${m[1]} is not one of ${POSITIONS.join(' | ')}; read as ${DEFAULT_POSITION}`] };
+  const text = strip(bearings);
+  const sec = section(text, 'Plan expansion posture');
+  const found = sec ? values(sec.body, 'Improve') : [];
+  const warnings = [];
+  if (values(sec ? sec.rest : text, 'Improve').length) warnings.push('Improve: outside ## Plan expansion posture is ignored; move it into that section');
+  if (!found.length) return { position: DEFAULT_POSITION, set: false, warnings };
+  if (found.length > 1) warnings.push(`more than one Improve: line (${found.join(', ')}); the first, ${found[0]}, wins`);
+  const v = found[0].toLowerCase();
+  if (POSITIONS.includes(v)) return { position: v, set: true, warnings };
+  return { position: DEFAULT_POSITION, set: true, warnings: [...warnings, `Improve: ${found[0]} is not one of ${POSITIONS.join(' | ')}; read as ${DEFAULT_POSITION}`] };
 }
 
 /** The names a non-empty `## Generators` list carries (`- (none)` and empty lists are no override). */
 export function generatorsListed(bearings = '') {
-  const lines = strip(bearings).split('\n');
-  const at = lines.findIndex((l) => /^##\s+Generators\s*$/.test(l));
-  if (at < 0) return [];
-  const end = lines.findIndex((l, i) => i > at && /^##\s/.test(l));
-  return lines.slice(at + 1, end < 0 ? lines.length : end)
-    .map((l) => /^[-*]\s+`?([\w.-]+)`?/.exec(l)?.[1])
+  const sec = section(strip(bearings), 'Generators');
+  if (!sec) return [];
+  return sec.body.split('\n')
+    .map((l) => /^\s*(?:[-*]|\d+[.)])\s+`?([\w.-]+)`?\s*$/.exec(l)?.[1] ?? /^\s*(?:[-*]|\d+[.)])\s+`?([\w.-]+)`?[\s:(-]/.exec(l)?.[1])
     .filter((n) => n && n !== 'none');
 }
 
@@ -82,11 +133,11 @@ export function resolve(bearings = '', env = {}) {
       const names = generatorsListed(text);
       if (names.length) { value = names.join(','); source = 'override'; }
     } else if (t.line) {
-      const m = lineRe(t.line).exec(text);
+      const m = values(text, t.line)[0];
       if (m) {
-        const v = m[1].toLowerCase();
+        const v = m.toLowerCase();
         if (!t.accepts || t.accepts.includes(v)) { value = v; source = 'override'; }
-        else warnings.push(`${t.line}: ${m[1]} is not one of ${t.accepts.join(' | ')}; the dial's ${base} stands`);
+        else warnings.push(`${t.line}: ${m} is not one of ${t.accepts.join(' | ')}; the dial's ${base} stands`);
       }
     }
     if (t.var && env[t.var] != null && String(env[t.var]).trim() !== '') {

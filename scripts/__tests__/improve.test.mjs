@@ -35,14 +35,14 @@ const UNGOVERNED = new Set(['NEXUS_CHAIN_MAX', 'NEXUS_IDLE_BACKOFF', 'NEXUS_QUOT
 describe('the dial', () => {
   it('reads each position, case-insensitively, in any bearings line shape', () => {
     for (const p of POSITIONS) {
-      assert.equal(dial(`Improve: ${p}`).position, p);
-      assert.equal(dial(`- **Improve:** \`${p.toUpperCase()}\``).position, p);
+      assert.equal(dial(bearings(`Improve: ${p}`)).position, p);
+      assert.equal(dial(bearings(`- **Improve:** \`${p.toUpperCase()}\``)).position, p);
     }
   });
   it('reads absent as gentle, and an unknown value as gentle with a warning', () => {
     assert.deepEqual([dial('').position, dial('').set], [DEFAULT_POSITION, false]);
     assert.equal(DEFAULT_POSITION, 'gentle');
-    const bad = dial('Improve: loud');
+    const bad = dial(bearings('Improve: loud'));
     assert.equal(bad.position, 'gentle');
     assert.match(bad.warnings[0], /Improve: loud/);
   });
@@ -123,9 +123,9 @@ describe('overrides', () => {
     assert.deepEqual([get(r, 'generators').value, get(r, 'generators').source], ['cli-ci-red,ui-walk', 'override']);
   });
   it('an override value the knob does not accept is ignored with a warning', () => {
-    const r = resolve(bearings('Improve: steady', 'Support: email us'));
+    const r = resolve(bearings('Improve: steady', 'Support: maybe'));
     assert.deepEqual([get(r, 'support').value, get(r, 'support').source], ['fix-small', 'dial']);
-    assert.match(r.warnings[0], /Support: email/);
+    assert.match(r.warnings[0], /Support: maybe/);
   });
 });
 
@@ -175,5 +175,52 @@ describe('the printed form', () => {
     main(['--root', path.join(root, 'nowhere')], { env: {}, log: (s) => none.push(s), err: () => {} });
     assert.equal(none[0], 'improve gentle (absent: gentle)');
     fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+describe('review findings (3 to 8b)', () => {
+  const sec = (...rows) => ['## Plan expansion posture', '', ...rows, ''].join('\n');
+  it('3: fenced and indented code blocks are not read', () => {
+    assert.equal(resolve('```\nImprove: bold\n```\nImprove: off\n').dial, 'gentle');
+    assert.equal(resolve(sec('~~~', 'Improve: bold', '~~~', 'Improve: off')).dial, 'off');
+    assert.equal(resolve(sec('Example:', '', '    Improve: bold', '', 'Improve: off')).dial, 'off');
+    assert.equal(resolve(sec('- item', '', '    Improve: bold', '', 'Improve: off')).dial, 'bold');
+    assert.deepEqual(generatorsListed('## Generators\n\n```\n- fake\n```\n- real\n'), ['real']);
+    const r = resolve(sec('```', 'Support: fix-all', '```'));
+    assert.equal(get(r, 'support').source, 'dial');
+  });
+  it('4: duplicate Improve lines warn and name the winner', () => {
+    const r = resolve(sec('Improve: bold', 'Improve: off'));
+    assert.equal(r.dial, 'bold');
+    assert.ok(r.warnings.some((w) => /more than one Improve/.test(w) && /bold/.test(w)), r.warnings.join('|'));
+    assert.deepEqual(resolve(sec('Improve: bold')).warnings, []);
+  });
+  it('5: Improve is read only inside Plan expansion posture', () => {
+    const text = '# B\n\nImprove: bold\n\n## Plan expansion posture\n\nImprove: steady\n\n## Other\n\nImprove: off\n';
+    const r = resolve(text);
+    assert.equal(r.dial, 'steady');
+    assert.ok(r.warnings.some((w) => /outside/.test(w)));
+    const stray = resolve('## Support\n\nImprove: bold\n');
+    assert.equal(stray.dial, 'gentle');
+    assert.ok(stray.warnings.some((w) => /outside/.test(w)));
+    assert.equal(resolve('## Plan expansion posture\r\n\r\nImprove: bold\r\n').dial, 'bold');
+  });
+  it('6: values tolerate a BOM, trailing punctuation and comments; prose is not an override', () => {
+    assert.equal(dial('﻿## Plan expansion posture\n\nImprove: bold\n').position, 'bold');
+    for (const tail of ['bold.', 'bold,', 'bold  # note', 'bold <!-- n -->', '**bold**', '`bold`']) assert.equal(resolve(sec(`Improve: ${tail}`)).dial, 'bold', tail);
+    const r = resolve(sec('Improve: steady', '- Support: fix-all is what we run', 'loop: on the tick', '- **Promote:** aged', 'stall_action: promote.'));
+    assert.equal(get(r, 'support').source, 'dial');
+    assert.equal(get(r, 'loop').source, 'dial');
+    assert.deepEqual([get(r, 'promote').source, get(r, 'stall_action').value], ['override', 'promote']);
+    assert.equal(resolve(sec('Improve: bold is the plan')).dial, 'gentle');
+  });
+  it('7: Generators heading suffix and numbered items; a ### ends the list', () => {
+    assert.deepEqual(generatorsListed('## Generators (optional)\n\n1. foo\n2) bar\n- baz\n\n### Notes\n\n- not-one\n'), ['foo', 'bar', 'baz']);
+    assert.deepEqual(generatorsListed('## Generators\n\n- (none)\n'), []);
+  });
+  it('8b: Promote: autonomous is accepted', () => {
+    const r = resolve(sec('Improve: bold', 'Promote: autonomous'));
+    assert.deepEqual([get(r, 'promote').value, get(r, 'promote').source], ['autonomous', 'override']);
+    assert.deepEqual(r.warnings, []);
   });
 });
