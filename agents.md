@@ -145,6 +145,8 @@ scripts/             The kit's verify gate (verify.mjs), the
 packages/cli/        The GUI (`kit.json` `package`): its own tests
                      (`npm test`), build and `cli-ci` gate.
 identity/            The kit's identity layer (footguns, decisions).
+proposal/            Drafted ideas with sources, before /plot
+                     makes them specs; never plan state.
 assets/              Generated SVG diagrams; never hand-edited.
                      gifs/ holds the README's recorded GUI GIFs.
 .claude/             nexus's OWN Claude Code config (commands,
